@@ -1,12 +1,31 @@
 package ping
 
 import (
+	"encoding/binary"
+	"net"
+	"time"
+
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 )
 
-func processMessage(r *recvMsg, onReply func(*Packet), dst map[string]struct{}) {
+const (
+	timeSliceLength  = 8
+	ProtocolICMP     = 1  // Internet Control Message
+	ProtocolIPv6ICMP = 58 // ICMP for IPv6
+)
+
+type recvMsg struct {
+	v4cm       *ipv4.ControlMessage
+	v6cm       *ipv6.ControlMessage
+	src        net.Addr
+	recieved   time.Time
+	payload    []byte
+	payloadLen int
+}
+
+func (pp *protoPinger) processMessage(r *recvMsg) {
 	var proto int
 	var typ icmp.Type
 	p := &Packet{}
@@ -29,12 +48,13 @@ func processMessage(r *recvMsg, onReply func(*Packet), dst map[string]struct{}) 
 		return
 	}
 
-	if len(r.payload) < r.lenPayload {
-		// Bad packet, skip
+	if len(r.payload) < r.payloadLen {
+		return
 	}
+
 	var m *icmp.Message
 	var err error
-	m, err = icmp.ParseMessage(proto, r.payload[:r.lenPayload])
+	m, err = icmp.ParseMessage(proto, r.payload[:r.payloadLen])
 	if err != nil {
 		return
 	}
@@ -48,17 +68,21 @@ func processMessage(r *recvMsg, onReply func(*Packet), dst map[string]struct{}) 
 	}
 	p.ID = e.ID
 
-	if _, ok := dst[dstStr(p.Src, p.ID)]; !ok {
-		// this is not our packet
+	if len(e.Data) < timeSliceLength {
 		return
 	}
 
-	if len(e.Data) < timeSliceLength {
+	cb, ok := pp.getCallback(p.Src, p.ID)
+	if !ok {
 		return
 	}
 
 	p.Sent = bytesToTime(e.Data[:timeSliceLength])
 	p.RTT = p.Recieved.Sub(p.Sent)
 
-	onReply(p)
+	cb(p)
+}
+
+func bytesToTime(b []byte) time.Time {
+	return time.Unix(0, int64(binary.LittleEndian.Uint64(b)))
 }
