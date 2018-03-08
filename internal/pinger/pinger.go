@@ -24,22 +24,23 @@ type Pinger struct {
 }
 
 func New(v int) *Pinger {
+	p := &Pinger{
+		callbacks: make(map[string]func(*packet.Packet)),
+	}
+
 	if v == 4 {
-		return &Pinger{
-			network:  "ip4:icmp",
-			src:      "0.0.0.0",
-			sendType: ipv4.ICMPTypeEcho,
-		}
+		p.network = "ip4:icmp"
+		p.src = "0.0.0.0"
+		p.sendType = ipv4.ICMPTypeEcho
 	}
 
 	if v == 6 {
-		return &Pinger{
-			network:  "ip6:ipv6-icmp",
-			src:      "::",
-			sendType: ipv6.ICMPTypeEchoRequest,
-		}
+		p.network = "ip6:ipv6-icmp"
+		p.src = "::"
+		p.sendType = ipv6.ICMPTypeEchoRequest
 	}
-	return nil
+
+	return p
 }
 
 func dstStr(ip net.IP, id int) string {
@@ -48,6 +49,10 @@ func dstStr(ip net.IP, id int) string {
 
 func (pp *Pinger) SendType() icmp.Type {
 	return pp.sendType
+}
+
+func (pp *Pinger) Network() string {
+	return pp.network
 }
 
 func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*packet.Packet), bool) {
@@ -73,6 +78,11 @@ func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error 
 	}
 	pp.callbacks[k] = cb
 	if len(pp.callbacks) == 1 {
+		err := pp.createListener()
+		if err != nil {
+			return err
+		}
+		pp.stop = make(chan struct{})
 		pp.wg.Add(1)
 		go func() {
 			defer pp.wg.Done()

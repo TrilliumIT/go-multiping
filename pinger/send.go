@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"syscall"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -22,11 +23,12 @@ func (d *Dst) Run() error {
 		Body: e,
 	}
 
-	err := d.pinger.AddCallBack(d.dst, e.ID, d.onReply)
+	err := d.pinger.AddCallBack(d.dst.IP, e.ID, d.onReply)
 	if err != nil {
+		fmt.Println("err adding callback")
 		return err
 	}
-	defer d.pinger.DelCallBack(d.dst, e.ID)
+	defer d.pinger.DelCallBack(d.dst.IP, e.ID)
 
 	t := make(chan struct{})
 	go func() {
@@ -50,14 +52,16 @@ func (d *Dst) Run() error {
 			return err
 		}
 		e.Seq += 1
-		if e.Seq > d.count {
+		if d.count > 0 && e.Seq >= d.count {
 			time.Sleep(d.timeout)
-			select {
-			case <-d.stop:
-			default:
-				d.Stop()
-			}
+			break
 		}
+	}
+
+	select {
+	case <-d.stop:
+	default:
+		d.Stop()
 	}
 
 	return nil
@@ -69,19 +73,27 @@ func (d *Dst) send(m *icmp.Message) error {
 		return fmt.Errorf("invalid icmp message")
 	}
 
-	var dAddr *net.IPAddr
 	var err error
-	dAddr, err = net.ResolveIPAddr("ip", d.dst.String())
-	if err != nil {
-		return err
-	}
-
 	e.Data = packet.TimeToBytes(time.Now())
 	b, err := m.Marshal(nil)
 	if err != nil {
 		return err
 	}
 
-	_, err = d.pinger.Conn.WriteTo(b, dAddr)
+	fmt.Printf("%p\n", d.dst)
+	fmt.Printf("%#v\n", d.dst)
+	fmt.Printf("%s\n", d.dst.String())
+	fmt.Printf("%s\n", d.dst.Network())
+	for {
+		_, err = d.pinger.Conn.WriteTo(b, d.dst)
+		if err != nil {
+			if neterr, ok := err.(*net.OpError); ok {
+				if neterr.Err == syscall.ENOBUFS {
+					continue
+				}
+			}
+		}
+		break
+	}
 	return err
 }

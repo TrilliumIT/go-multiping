@@ -72,6 +72,7 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 		return
 	}
 
+	p.Len = r.payloadLen
 	p.Sent = packet.BytesToTime(e.Data)
 	p.RTT = p.Recieved.Sub(p.Sent)
 

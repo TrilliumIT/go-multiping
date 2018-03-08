@@ -17,6 +17,7 @@ type Packet struct {
 	Dst      net.IP
 	ID       int
 	TTL      int
+	Len      int
 	Recieved time.Time
 	Sent     time.Time
 	RTT      time.Duration

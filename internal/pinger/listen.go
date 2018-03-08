@@ -7,14 +7,14 @@ import (
 	"golang.org/x/net/icmp"
 )
 
-func (p *Pinger) listen() error {
-	var wg sync.WaitGroup
+func (p *Pinger) createListener() error {
 	var err error
 	p.Conn, err = icmp.ListenPacket(p.network, p.src)
-	if err != nil {
-		return err
-	}
+	return err
+}
 
+func (p *Pinger) listen() error {
+	var wg sync.WaitGroup
 	// ipv4 listener
 	wg.Add(1)
 	go func() {
