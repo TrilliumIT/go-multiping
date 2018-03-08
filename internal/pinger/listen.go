@@ -1,4 +1,4 @@
-package ping
+package pinger
 
 import (
 	"sync"
@@ -7,10 +7,10 @@ import (
 	"golang.org/x/net/icmp"
 )
 
-func (p *protoPinger) listen() error {
+func (p *Pinger) listen() error {
 	var wg sync.WaitGroup
 	var err error
-	p.conn, err = icmp.ListenPacket(p.network, p.src)
+	p.Conn, err = icmp.ListenPacket(p.network, p.src)
 	if err != nil {
 		return err
 	}
@@ -24,13 +24,13 @@ func (p *protoPinger) listen() error {
 			case <-p.stop:
 				return
 			default:
-				if p.conn.IPv4PacketConn() == nil {
+				if p.Conn.IPv4PacketConn() == nil {
 					return
 				}
 				r := &recvMsg{}
 				b := []byte{}
 				var err error
-				r.payloadLen, r.v4cm, _, err = p.conn.IPv4PacketConn().ReadFrom(b)
+				r.payloadLen, r.v4cm, _, err = p.Conn.IPv4PacketConn().ReadFrom(b)
 				if err != nil {
 					continue
 				}
@@ -49,12 +49,12 @@ func (p *protoPinger) listen() error {
 			case <-p.stop:
 				return
 			default:
-				if p.conn.IPv6PacketConn() == nil {
+				if p.Conn.IPv6PacketConn() == nil {
 					return
 				}
 				r := &recvMsg{}
 				var err error
-				r.payloadLen, r.v6cm, _, err = p.conn.IPv6PacketConn().ReadFrom(r.payload)
+				r.payloadLen, r.v6cm, _, err = p.Conn.IPv6PacketConn().ReadFrom(r.payload)
 				if err != nil {
 					continue
 				}
