@@ -14,8 +14,9 @@ import (
 
 func (d *Dst) Run() error {
 	e := &icmp.Echo{
-		ID:  rand.Intn(65535),
-		Seq: 0,
+		ID:   rand.Intn(65535),
+		Seq:  0,
+		Data: packet.TimeToBytes(time.Now()),
 	}
 	m := &icmp.Message{
 		Type: d.pinger.SendType(),
@@ -25,7 +26,6 @@ func (d *Dst) Run() error {
 
 	err := d.pinger.AddCallBack(d.dst.IP, e.ID, d.onReply)
 	if err != nil {
-		fmt.Println("err adding callback")
 		return err
 	}
 	defer d.pinger.DelCallBack(d.dst.IP, e.ID)
@@ -80,12 +80,8 @@ func (d *Dst) send(m *icmp.Message) error {
 		return err
 	}
 
-	fmt.Printf("%p\n", d.dst)
-	fmt.Printf("%#v\n", d.dst)
-	fmt.Printf("%s\n", d.dst.String())
-	fmt.Printf("%s\n", d.dst.Network())
 	for {
-		_, err = d.pinger.Conn.WriteTo(b, d.dst)
+		_, err := d.pinger.Conn.WriteTo(b, d.dst)
 		if err != nil {
 			if neterr, ok := err.(*net.OpError); ok {
 				if neterr.Err == syscall.ENOBUFS {

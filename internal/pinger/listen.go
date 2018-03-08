@@ -1,7 +1,6 @@
 package pinger
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -10,37 +9,46 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
-func (p *Pinger) createListener() error {
+func (p *Pinger) listen() (func(), error) {
 	var err error
+	var wg sync.WaitGroup
+
 	p.Conn, err = icmp.ListenPacket(p.network, p.src)
 	if err != nil {
-		return err
+		return wg.Done, err
 	}
 	if p.Conn.IPv4PacketConn() != nil {
 		err = p.Conn.IPv4PacketConn().SetControlMessage(ipv4.FlagDst|ipv4.FlagSrc|ipv4.FlagTTL, true)
 		if err != nil {
-			return err
+			return wg.Done, err
 		}
 	}
 
 	if p.Conn.IPv6PacketConn() != nil {
 		err = p.Conn.IPv6PacketConn().SetControlMessage(ipv6.FlagDst|ipv6.FlagSrc|ipv6.FlagHopLimit, true)
 		if err != nil {
-			return err
+			return wg.Done, err
 		}
 	}
 
-	return nil
-}
+	var swg sync.WaitGroup
 
-func (p *Pinger) listen() error {
-	var wg sync.WaitGroup
+	// close conn on stop
+	wg.Add(1)
+	swg.Add(1)
+	go func() {
+		defer wg.Done()
+		swg.Done()
+		<-p.stop
+		p.Conn.Close()
+	}()
+
 	// ipv4 listener
 	wg.Add(1)
+	swg.Add(1)
 	go func() {
-		fmt.Println("Starting v4 listener")
-		defer fmt.Println("quitting v4 listener")
 		defer wg.Done()
+		swg.Done()
 		for {
 			select {
 			case <-p.stop:
@@ -49,12 +57,11 @@ func (p *Pinger) listen() error {
 				if p.Conn.IPv4PacketConn() == nil {
 					return
 				}
-				r := &recvMsg{}
-				b := []byte{}
+				r := &recvMsg{
+					payload: make([]byte, p.expectedLen, p.expectedLen),
+				}
 				var err error
-				fmt.Println("Waiting on v4 packet")
-				r.payloadLen, r.v4cm, _, err = p.Conn.IPv4PacketConn().ReadFrom(b)
-				fmt.Println("v4 packet recieved")
+				r.payloadLen, r.v4cm, _, err = p.Conn.IPv4PacketConn().ReadFrom(r.payload)
 				if err != nil {
 					continue
 				}
@@ -66,10 +73,10 @@ func (p *Pinger) listen() error {
 
 	// ipv6 listener
 	wg.Add(1)
+	swg.Add(1)
 	go func() {
-		fmt.Println("Starting v6 listener")
-		defer fmt.Println("quitting v6 listener")
 		defer wg.Done()
+		swg.Done()
 		for {
 			select {
 			case <-p.stop:
@@ -90,6 +97,6 @@ func (p *Pinger) listen() error {
 		}
 	}()
 
-	wg.Wait()
-	return nil
+	swg.Wait()
+	return wg.Wait, nil
 }

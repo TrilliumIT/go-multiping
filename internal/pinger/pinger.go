@@ -13,14 +13,15 @@ import (
 )
 
 type Pinger struct {
-	stop      chan struct{}
-	network   string
-	src       string
-	sendType  icmp.Type
-	Conn      *icmp.PacketConn
-	cbLock    sync.RWMutex
-	callbacks map[string]func(*packet.Packet)
-	wg        sync.WaitGroup
+	stop        chan struct{}
+	network     string
+	src         string
+	sendType    icmp.Type
+	Conn        *icmp.PacketConn
+	cbLock      sync.RWMutex
+	callbacks   map[string]func(*packet.Packet)
+	wg          sync.WaitGroup
+	expectedLen int
 }
 
 func New(v int) *Pinger {
@@ -32,12 +33,33 @@ func New(v int) *Pinger {
 		p.network = "ip4:icmp"
 		p.src = "0.0.0.0"
 		p.sendType = ipv4.ICMPTypeEcho
+
+		if m, err := (&icmp.Message{
+			Type: ipv4.ICMPTypeEcho,
+			Body: &icmp.Echo{
+				Data: make([]byte, packet.TimeSliceLength, packet.TimeSliceLength),
+			},
+		}).Marshal(nil); err == nil {
+			p.expectedLen = len(m)
+		} else {
+			panic(err)
+		}
 	}
 
 	if v == 6 {
 		p.network = "ip6:ipv6-icmp"
 		p.src = "::"
 		p.sendType = ipv6.ICMPTypeEchoRequest
+		if m, err := (&icmp.Message{
+			Type: ipv6.ICMPTypeEchoReply,
+			Body: &icmp.Echo{
+				Data: make([]byte, packet.TimeSliceLength, packet.TimeSliceLength),
+			},
+		}).Marshal(nil); err == nil {
+			p.expectedLen = len(m)
+		} else {
+			panic(err)
+		}
 	}
 
 	return p
@@ -78,16 +100,16 @@ func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error 
 	}
 	pp.callbacks[k] = cb
 	if len(pp.callbacks) == 1 {
-		err := pp.createListener()
+		pp.stop = make(chan struct{})
+		wait, err := pp.listen()
+		pp.wg.Add(1)
+		go func() {
+			wait()
+			pp.wg.Done()
+		}()
 		if err != nil {
 			return err
 		}
-		pp.stop = make(chan struct{})
-		pp.wg.Add(1)
-		go func() {
-			defer pp.wg.Done()
-			pp.listen()
-		}()
 	}
 	return nil
 }

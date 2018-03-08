@@ -1,7 +1,6 @@
 package pinger
 
 import (
-	"fmt"
 	"net"
 	"time"
 
@@ -22,16 +21,18 @@ type Dst struct {
 	count int
 	// OnReply is the callback triggered every time a ping is recieved
 	onReply func(*packet.Packet)
-	pinger  *protoPinger.Pinger
-	stop    chan struct{}
+	// expectedLen is the expected lenght of incoming packets
+	expectedLen int
+	pinger      *protoPinger.Pinger
+	stop        chan struct{}
 }
 
 // NewPingDest creates a PingDest object
 func (p *Pinger) NewDst(dst string, interval, timeout time.Duration, count int, onReply func(*packet.Packet)) (*Dst, error) {
 	d := &Dst{
 		dstStr:   dst,
-		interval: time.Second,
-		timeout:  time.Second,
+		interval: interval,
+		timeout:  timeout,
 		count:    count,
 		onReply:  onReply,
 		stop:     make(chan struct{}),
@@ -39,7 +40,6 @@ func (p *Pinger) NewDst(dst string, interval, timeout time.Duration, count int, 
 
 	var err error
 	d.dst, err = net.ResolveIPAddr("ip", dst)
-	fmt.Printf("%p\n", d.dst)
 	if err != nil {
 		return nil, err
 	}

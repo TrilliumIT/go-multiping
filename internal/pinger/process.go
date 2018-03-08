@@ -1,7 +1,6 @@
 package pinger
 
 import (
-	"fmt"
 	"net"
 	"time"
 
@@ -27,7 +26,6 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 	p := &packet.Packet{}
 	p.Recieved = r.recieved
 	if r.v4cm != nil {
-		fmt.Println("This is a v4 packet")
 		p.Src = r.v4cm.Src
 		p.Dst = r.v4cm.Dst
 		p.TTL = r.v4cm.TTL
@@ -35,7 +33,6 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 		typ = ipv4.ICMPTypeEchoReply
 	}
 	if r.v6cm != nil {
-		fmt.Println("This is a v6 packet")
 		p.Src = r.v6cm.Src
 		p.Dst = r.v6cm.Dst
 		p.TTL = r.v6cm.HopLimit
@@ -43,12 +40,10 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 		typ = ipv6.ICMPTypeEchoReply
 	}
 	if p.Dst == nil {
-		fmt.Println("dst is nil")
 		return
 	}
 
 	if len(r.payload) < r.payloadLen {
-		fmt.Println("payload too short")
 		return
 	}
 
@@ -56,7 +51,6 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 	var err error
 	m, err = icmp.ParseMessage(proto, r.payload[:r.payloadLen])
 	if err != nil {
-		fmt.Println("unable to parse")
 		return
 	}
 	if m.Type != typ {
@@ -65,19 +59,17 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 
 	e, ok := m.Body.(*icmp.Echo)
 	if !ok {
-		fmt.Println("not an echo")
 		return
 	}
 	p.ID = e.ID
+	p.Seq = e.Seq
 
 	if len(e.Data) < packet.TimeSliceLength {
-		fmt.Println("echo data too short")
 		return
 	}
 
 	cb, ok := pp.GetCallback(p.Src, p.ID)
 	if !ok {
-		fmt.Println("no callback")
 		return
 	}
 

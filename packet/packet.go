@@ -18,6 +18,7 @@ type Packet struct {
 	ID       int
 	TTL      int
 	Len      int
+	Seq      int
 	Recieved time.Time
 	Sent     time.Time
 	RTT      time.Duration
