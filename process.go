@@ -25,6 +25,16 @@ type recvMsg struct {
 	payloadLen int
 }
 
+type Packet struct {
+	Src      net.IP
+	Dst      net.IP
+	ID       int
+	TTL      int
+	Recieved time.Time
+	Sent     time.Time
+	RTT      time.Duration
+}
+
 func (pp *protoPinger) processMessage(r *recvMsg) {
 	var proto int
 	var typ icmp.Type
