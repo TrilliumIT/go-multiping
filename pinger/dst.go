@@ -20,10 +20,7 @@ type Dst struct {
 	// Count is the count of pings
 	count int
 	// OnReply is the callback triggered every time a ping is recieved
-	onReply   func(*packet.Packet)
-	onSend    func(*packet.SentPacket)
-	onTimeout func(*packet.SentPacket)
-
+	onReply func(*packet.Packet)
 	// expectedLen is the expected lenght of incoming packets
 	expectedLen int
 	pinger      *protoPinger.Pinger
@@ -50,18 +47,6 @@ func (p *Pinger) NewDst(dst string, interval, timeout time.Duration, count int, 
 
 	d.pinger = p.getProtoPinger(d.dst.IP)
 	return d, err
-}
-
-func (d *Dst) SetOnReply(f func(*packet.Packet)) {
-	d.onReply = f
-}
-
-func (d *Dst) SetOnSend(f func(*packet.SentPacket)) {
-	d.onSend = f
-}
-
-func (d *Dst) SetOnTimeout(f func(*packet.SentPacket)) {
-	d.onTimeout = f
 }
 
 func (d *Dst) Stop() {

@@ -19,28 +19,14 @@ type Pinger struct {
 	sendType    icmp.Type
 	Conn        *icmp.PacketConn
 	cbLock      sync.RWMutex
-	callbacks   map[string]*Callbacks
+	callbacks   map[string]func(*packet.Packet)
 	wg          sync.WaitGroup
 	expectedLen int
 }
 
-type Callbacks struct {
-	onReply   func(*packet.Packet)
-	onSend    func(*packet.SentPacket)
-	onTimeout func(*packet.SentPacket)
-}
-
-func NewCallBacks(onReply func(*packet.Packet), onSend, onTimeout func(*packet.SentPacket)) *Callbacks {
-	return &Callbacks{
-		onReply:   onReply,
-		onSend:    onSend,
-		onTimeout: onTimeout,
-	}
-}
-
 func New(v int) *Pinger {
 	p := &Pinger{
-		callbacks: make(map[string]*Callbacks),
+		callbacks: make(map[string]func(*packet.Packet)),
 	}
 
 	if v == 4 {
@@ -91,7 +77,7 @@ func (pp *Pinger) Network() string {
 	return pp.network
 }
 
-func (pp *Pinger) GetCallbacks(ip net.IP, id int) (*Callbacks, bool) {
+func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*packet.Packet), bool) {
 	k := dstStr(ip, id)
 	pp.cbLock.RLock()
 	defer pp.cbLock.RUnlock()
@@ -99,7 +85,7 @@ func (pp *Pinger) GetCallbacks(ip net.IP, id int) (*Callbacks, bool) {
 	return v, ok
 }
 
-func (pp *Pinger) AddCallBacks(ip net.IP, id int, cb *Callbacks) error {
+func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error {
 	if ip == nil {
 		return fmt.Errorf("invalid ip")
 	}
@@ -128,7 +114,7 @@ func (pp *Pinger) AddCallBacks(ip net.IP, id int, cb *Callbacks) error {
 	return nil
 }
 
-func (pp *Pinger) DelCallBacks(ip net.IP, id int) {
+func (pp *Pinger) DelCallBack(ip net.IP, id int) {
 	k := dstStr(ip, id)
 	pp.cbLock.Lock()
 	defer pp.cbLock.Unlock()
