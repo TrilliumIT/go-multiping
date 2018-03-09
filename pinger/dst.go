@@ -17,10 +17,15 @@ type Dst struct {
 	interval time.Duration
 	// Timeout is how long to wait after the last packet is sent
 	timeout time.Duration
-	// Count is the count of pings
+	// Count is the count of pings to be sent
 	count int
-	// OnReply is the callback triggered every time a ping is recieved
-	onReply func(*packet.Packet)
+
+	// callbacks
+	onReply     func(*packet.Packet)
+	onSend      func(*packet.SentPacket)
+	onSendError func(*packet.SentPacket)
+	onTimeout   func(*packet.SentPacket)
+	//onOutOfOrder func(*packet.Packet)
 	// expectedLen is the expected lenght of incoming packets
 	expectedLen int
 	pinger      *protoPinger.Pinger
@@ -28,13 +33,12 @@ type Dst struct {
 }
 
 // NewPingDest creates a PingDest object
-func (p *Pinger) NewDst(dst string, interval, timeout time.Duration, count int, onReply func(*packet.Packet)) (*Dst, error) {
+func (p *Pinger) NewDst(dst string, interval, timeout time.Duration, count int) (*Dst, error) {
 	d := &Dst{
 		dstStr:   dst,
 		interval: interval,
 		timeout:  timeout,
 		count:    count,
-		onReply:  onReply,
 		stop:     make(chan struct{}),
 	}
 
@@ -48,6 +52,28 @@ func (p *Pinger) NewDst(dst string, interval, timeout time.Duration, count int, 
 	d.pinger = p.getProtoPinger(d.dst.IP)
 	return d, err
 }
+
+func (d *Dst) SetOnReply(f func(*packet.Packet)) {
+	d.onReply = f
+}
+
+func (d *Dst) SetOnSend(f func(*packet.SentPacket)) {
+	d.onSend = f
+}
+
+func (d *Dst) SetOnSendError(f func(*packet.SentPacket)) {
+	d.onSendError = f
+}
+
+func (d *Dst) SetOnTimeout(f func(*packet.SentPacket)) {
+	d.onTimeout = f
+}
+
+/*
+func (d *Dst) SetOnOutOfOrder(f func(*packet.Packet)) {
+	d.onOutOfOrder = f
+}
+*/
 
 func (d *Dst) Stop() {
 	close(d.stop)

@@ -12,9 +12,13 @@ import (
 	"github.com/clinta/go-multiping/packet"
 )
 
+func init() {
+	rand.Seed(time.Now().UTC().UnixNano())
+}
+
 func (d *Dst) Run() error {
 	e := &icmp.Echo{
-		ID:   rand.Intn(65535),
+		ID:   rand.Intn(1<<16 - 1),
 		Seq:  0,
 		Data: packet.TimeToBytes(time.Now()),
 	}
@@ -24,7 +28,11 @@ func (d *Dst) Run() error {
 		Body: e,
 	}
 
-	err := d.pinger.AddCallBack(d.dst.IP, e.ID, d.onReply)
+	onReply, onSend, onSendError := wrapCallbacks(
+		d.onReply, d.onSend, d.onSendError, d.onTimeout,
+		d.stop, d.timeout, d.interval)
+
+	err := d.pinger.AddCallBack(d.dst.IP, e.ID, onReply)
 	if err != nil {
 		return err
 	}
@@ -47,11 +55,11 @@ func (d *Dst) Run() error {
 	}()
 
 	for range t {
-		err := d.send(m)
+		err := d.send(m, onSend, onSendError)
 		if err != nil {
 			return err
 		}
-		e.Seq += 1
+		e.Seq = int(uint16(e.Seq + 1))
 		if d.count > 0 && e.Seq >= d.count {
 			time.Sleep(d.timeout)
 			break
@@ -67,26 +75,40 @@ func (d *Dst) Run() error {
 	return nil
 }
 
-func (d *Dst) send(m *icmp.Message) error {
+func (d *Dst) send(m *icmp.Message, onSend, onSendError func(*packet.SentPacket)) error {
 	e, ok := m.Body.(*icmp.Echo)
 	if !ok {
 		return fmt.Errorf("invalid icmp message")
 	}
 
 	var err error
-	e.Data = packet.TimeToBytes(time.Now())
-	b, err := m.Marshal(nil)
-	if err != nil {
-		return err
-	}
-
 	for {
-		_, err := d.pinger.Conn.WriteTo(b, d.dst)
+		t := time.Now()
+		e.Data = packet.TimeToBytes(t)
+		b, err := m.Marshal(nil)
+		if err != nil {
+			return err
+		}
+
+		sp := &packet.SentPacket{
+			Dst:  d.dst.IP,
+			ID:   e.ID,
+			Seq:  e.Seq,
+			Sent: t,
+		}
+		if onSend != nil {
+			onSend(sp)
+		}
+
+		_, err = d.pinger.Conn.WriteTo(b, d.dst)
 		if err != nil {
 			if neterr, ok := err.(*net.OpError); ok {
 				if neterr.Err == syscall.ENOBUFS {
 					continue
 				}
+			}
+			if onSendError != nil {
+				onSendError(sp)
 			}
 		}
 		break

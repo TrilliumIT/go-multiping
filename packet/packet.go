@@ -12,16 +12,32 @@ const (
 	ProtocolIPv6ICMP = 58 // ICMP for IPv6
 )
 
+type SentPacket struct {
+	Dst  net.IP
+	ID   int
+	Seq  int
+	Sent time.Time
+}
+
 type Packet struct {
+	SentPacket
 	Src      net.IP
-	Dst      net.IP
-	ID       int
 	TTL      int
 	Len      int
-	Seq      int
 	Recieved time.Time
-	Sent     time.Time
 	RTT      time.Duration
+}
+
+func (p *Packet) ToSentPacket() *SentPacket {
+	if p == nil {
+		return nil
+	}
+	return &SentPacket{
+		Dst:  p.Src,
+		ID:   p.ID,
+		Seq:  p.Seq,
+		Sent: p.Sent,
+	}
 }
 
 func TimeToBytes(t time.Time) []byte {
