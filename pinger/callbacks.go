@@ -71,8 +71,14 @@ func wrapCallbacks(
 	}
 
 	rOnReply := func(p *packet.Packet) {
-		if onReply != nil {
-			go onReply(p)
+		if p.Sent.Add(timeout).Before(p.Recieved) {
+			if onTimeout != nil {
+				go onTimeout(p.ToSentPacket())
+			}
+		} else {
+			if onReply != nil {
+				go onReply(p)
+			}
 		}
 		pktCh <- &pkt{recv: p}
 	}
@@ -94,11 +100,6 @@ func processPkt(pending map[int]*packet.SentPacket, p *pkt, t *time.Timer, timeo
 		}
 	}
 	if p.recv != nil {
-		if p.recv.Sent.Add(timeout).Before(p.recv.Recieved) {
-			if onTimeout != nil {
-				go onTimeout(p.recv.ToSentPacket())
-			}
-		}
 		delete(pending, p.recv.Seq)
 	}
 	if p.err != nil {
