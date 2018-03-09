@@ -32,7 +32,12 @@ type Dst struct {
 	stop        chan struct{}
 }
 
-// NewPingDest creates a PingDest object
+// NewDst creates a PingDest object
+func NewDst(dst string, interval, timeout time.Duration, count int) (*Dst, error) {
+	return getGlobalPinger().NewDst(dst, interval, timeout, count)
+}
+
+// NewDst creates a PingDest object
 func (p *Pinger) NewDst(dst string, interval, timeout time.Duration, count int) (*Dst, error) {
 	d := &Dst{
 		dstStr:   dst,

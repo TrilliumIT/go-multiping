@@ -3,11 +3,27 @@ package pinger
 import (
 	protoPinger "github.com/clinta/go-multiping/internal/pinger"
 	"net"
+	"sync"
 )
 
 type Pinger struct {
 	v4Pinger *protoPinger.Pinger
 	v6Pinger *protoPinger.Pinger
+}
+
+var globalPinger *Pinger
+var globalPingerLock sync.Mutex
+
+func getGlobalPinger() *Pinger {
+	if globalPinger != nil {
+		return globalPinger
+	}
+	globalPingerLock.Lock()
+	defer globalPingerLock.Unlock()
+	if globalPinger == nil {
+		globalPinger = NewPinger()
+	}
+	return globalPinger
 }
 
 func NewPinger() *Pinger {
