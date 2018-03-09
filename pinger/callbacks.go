@@ -84,9 +84,9 @@ func processPkt(pending map[int]*packet.SentPacket, p *pkt, t *time.Timer, timeo
 		}
 	}
 	if p.recv != nil {
-		if p.recv.Sent.Add(timeout).After(time.Now()) {
+		if p.recv.Sent.Add(timeout).Before(time.Now()) {
 			if onTimeout != nil {
-				//go onTimeout(p.recv.ToSentPacket())
+				go onTimeout(p.recv.ToSentPacket())
 			}
 		}
 		delete(pending, p.recv.Seq)
