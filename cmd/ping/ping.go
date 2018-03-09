@@ -51,26 +51,19 @@ func main() {
 		return
 	}
 
-	var sent, recieved, missing, dropped uint64
+	var recieved, dropped uint64
 
 	p := pinger.NewPinger()
 	onReply := func(pkt *packet.Packet) {
 		atomic.AddUint64(&recieved, 1)
-		atomic.StoreUint64(&missing, sent-recieved)
-		//fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT, pkt.TTL, pkt.Seq, pkt.ID)
-		fmt.Printf("%v sent, %v recieved, %v missing, %v dropped\n", sent, recieved, missing, dropped)
+		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT, pkt.TTL, pkt.Seq, pkt.ID)
+		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
 
 	onTimeout := func(pkt *packet.SentPacket) {
 		atomic.AddUint64(&dropped, 1)
-		//fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
-		fmt.Printf("%v sent, %v recieved, %v missing, %v dropped\n", sent, recieved, missing, dropped)
-	}
-
-	onSent := func(pkt *packet.SentPacket) {
-		atomic.AddUint64(&sent, 1)
-		atomic.StoreUint64(&missing, sent-recieved)
-		fmt.Printf("%v sent, %v recieved, %v missing, %v dropped\n", sent, recieved, missing, dropped)
+		fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
 
 	var wg sync.WaitGroup
@@ -79,7 +72,6 @@ func main() {
 		d, err := p.NewDst(h, *interval, *timeout, *count)
 		d.SetOnReply(onReply)
 		d.SetOnTimeout(onTimeout)
-		d.SetOnSend(onSent)
 		if err != nil {
 			panic(err)
 		}
