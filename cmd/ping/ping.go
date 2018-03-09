@@ -53,7 +53,6 @@ func main() {
 
 	var recieved, dropped uint64
 
-	p := pinger.NewPinger()
 	onReply := func(pkt *packet.Packet) {
 		atomic.AddUint64(&recieved, 1)
 		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT, pkt.TTL, pkt.Seq, pkt.ID)
@@ -69,7 +68,7 @@ func main() {
 	var wg sync.WaitGroup
 	var stops []func()
 	for _, h := range flag.Args() {
-		d, err := p.NewDst(h, *interval, *timeout, *count)
+		d, err := pinger.NewDst(h, *interval, *timeout, *count)
 		d.SetOnReply(onReply)
 		d.SetOnTimeout(onTimeout)
 		if err != nil {
