@@ -3,7 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"os/signal"
+	"runtime/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/clinta/go-multiping/packet"
@@ -42,20 +46,38 @@ func main() {
 	}
 	flag.Parse()
 
-	fmt.Printf("i %v\n", interval.String())
 	if flag.NArg() == 0 {
 		flag.Usage()
 		return
 	}
 
+	var sent, recieved, dropped uint64
+
 	p := pinger.NewPinger()
-	f := func(pkt *packet.Packet) {
-		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT, pkt.TTL, pkt.Seq, pkt.ID)
+	onReply := func(pkt *packet.Packet) {
+		atomic.AddUint64(&recieved, 1)
+		//fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT, pkt.TTL, pkt.Seq, pkt.ID)
+		fmt.Printf("%v sent, %v recieved, %v dropped\n", sent, recieved, dropped)
+	}
+
+	onTimeout := func(pkt *packet.SentPacket) {
+		atomic.AddUint64(&dropped, 1)
+		//fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+		fmt.Printf("%v sent, %v recieved, %v dropped\n", sent, recieved, dropped)
+	}
+
+	onSent := func(pkt *packet.SentPacket) {
+		atomic.AddUint64(&sent, 1)
+		fmt.Printf("%v sent, %v recieved, %v dropped\n", sent, recieved, dropped)
 	}
 
 	var wg sync.WaitGroup
+	var stops []func()
 	for _, h := range flag.Args() {
-		d, err := p.NewDst(h, *interval, *timeout, *count, f)
+		d, err := p.NewDst(h, *interval, *timeout, *count)
+		d.SetOnReply(onReply)
+		d.SetOnTimeout(onTimeout)
+		d.SetOnSend(onSent)
 		if err != nil {
 			panic(err)
 		}
@@ -67,7 +89,18 @@ func main() {
 				panic(err)
 			}
 		}()
+		stops = append(stops, d.Stop)
 	}
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		for _, s := range stops {
+			s()
+		}
+	}()
 
 	wg.Wait()
 

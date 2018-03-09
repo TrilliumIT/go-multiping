@@ -1,6 +1,7 @@
 package pinger
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"sync"
@@ -19,14 +20,14 @@ type Pinger struct {
 	sendType    icmp.Type
 	Conn        *icmp.PacketConn
 	cbLock      sync.RWMutex
-	callbacks   map[string]func(*packet.Packet)
+	callbacks   map[[18]byte]func(*packet.Packet)
 	wg          sync.WaitGroup
 	expectedLen int
 }
 
 func New(v int) *Pinger {
 	p := &Pinger{
-		callbacks: make(map[string]func(*packet.Packet)),
+		callbacks: make(map[[18]byte]func(*packet.Packet)),
 	}
 
 	if v == 4 {
@@ -65,8 +66,11 @@ func New(v int) *Pinger {
 	return p
 }
 
-func dstStr(ip net.IP, id int) string {
-	return fmt.Sprintf("%s/%v", ip.String(), id)
+func dstKey(ip net.IP, id int) [18]byte {
+	var r [18]byte
+	copy(r[0:15], ip.To16())
+	binary.LittleEndian.PutUint16(r[16:], uint16(id))
+	return r
 }
 
 func (pp *Pinger) SendType() icmp.Type {
@@ -78,7 +82,7 @@ func (pp *Pinger) Network() string {
 }
 
 func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*packet.Packet), bool) {
-	k := dstStr(ip, id)
+	k := dstKey(ip, id)
 	pp.cbLock.RLock()
 	defer pp.cbLock.RUnlock()
 	v, ok := pp.callbacks[k]
@@ -92,7 +96,7 @@ func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error 
 	if cb == nil {
 		return fmt.Errorf("invalid callback")
 	}
-	k := dstStr(ip, id)
+	k := dstKey(ip, id)
 	pp.cbLock.Lock()
 	defer pp.cbLock.Unlock()
 	if _, ok := pp.callbacks[k]; ok {
@@ -115,7 +119,7 @@ func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error 
 }
 
 func (pp *Pinger) DelCallBack(ip net.IP, id int) {
-	k := dstStr(ip, id)
+	k := dstKey(ip, id)
 	pp.cbLock.Lock()
 	defer pp.cbLock.Unlock()
 	delete(pp.callbacks, k)
