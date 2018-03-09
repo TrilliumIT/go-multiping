@@ -68,8 +68,11 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 		return
 	}
 
-	cb, ok := pp.GetCallback(p.Src, p.ID)
+	cb, ok := pp.GetCallbacks(p.Src, p.ID)
 	if !ok {
+		return
+	}
+	if cb.onReply == nil {
 		return
 	}
 
@@ -77,5 +80,5 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 	p.Sent = packet.BytesToTime(e.Data)
 	p.RTT = p.Recieved.Sub(p.Sent)
 
-	cb(p)
+	cb.onReply(p)
 }

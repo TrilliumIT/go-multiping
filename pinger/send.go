@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/net/icmp"
 
+	protoPinger "github.com/clinta/go-multiping/internal/pinger"
 	"github.com/clinta/go-multiping/packet"
 )
 
@@ -24,11 +25,19 @@ func (d *Dst) Run() error {
 		Body: e,
 	}
 
-	err := d.pinger.AddCallBack(d.dst.IP, e.ID, d.onReply)
+	err := d.pinger.AddCallBacks(
+		d.dst.IP,
+		e.ID,
+		protoPinger.NewCallBacks(
+			d.onReply,
+			d.onSend,
+			d.onTimeout,
+		),
+	)
 	if err != nil {
 		return err
 	}
-	defer d.pinger.DelCallBack(d.dst.IP, e.ID)
+	defer d.pinger.DelCallBacks(d.dst.IP, e.ID)
 
 	t := make(chan struct{})
 	go func() {

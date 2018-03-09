@@ -12,15 +12,19 @@ const (
 	ProtocolIPv6ICMP = 58 // ICMP for IPv6
 )
 
+type SentPacket struct {
+	Dst  net.IP
+	ID   int
+	Seq  int
+	Sent time.Time
+	Len  int
+}
+
 type Packet struct {
+	SentPacket
 	Src      net.IP
-	Dst      net.IP
-	ID       int
 	TTL      int
-	Len      int
-	Seq      int
 	Recieved time.Time
-	Sent     time.Time
 	RTT      time.Duration
 }
 
