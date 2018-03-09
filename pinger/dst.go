@@ -21,9 +21,10 @@ type Dst struct {
 	count int
 
 	// callbacks
-	onReply   func(*packet.Packet)
-	onSend    func(*packet.SentPacket)
-	onTimeout func(*packet.SentPacket)
+	onReply     func(*packet.Packet)
+	onSend      func(*packet.SentPacket)
+	onSendError func(*packet.SentPacket)
+	onTimeout   func(*packet.SentPacket)
 	//onOutOfOrder func(*packet.Packet)
 	// expectedLen is the expected lenght of incoming packets
 	expectedLen int
@@ -58,6 +59,10 @@ func (d *Dst) SetOnReply(f func(*packet.Packet)) {
 
 func (d *Dst) SetOnSend(f func(*packet.SentPacket)) {
 	d.onSend = f
+}
+
+func (d *Dst) SetOnSendError(f func(*packet.SentPacket)) {
+	d.onSendError = f
 }
 
 func (d *Dst) SetOnTimeout(f func(*packet.SentPacket)) {

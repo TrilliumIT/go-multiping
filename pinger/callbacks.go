@@ -9,6 +9,7 @@ import (
 func wrapCallbacks(
 	onReply func(*packet.Packet),
 	onSend func(*packet.SentPacket),
+	onSendError func(*packet.SentPacket),
 	onTimeout func(*packet.SentPacket),
 	stop <-chan struct{},
 	timeout time.Duration,
@@ -16,9 +17,10 @@ func wrapCallbacks(
 ) (
 	func(*packet.Packet),
 	func(*packet.SentPacket),
+	func(*packet.SentPacket),
 ) {
 	if onTimeout == nil {
-		return onReply, onSend
+		return onReply, onSend, onSendError
 	}
 
 	buf := 2 * (timeout.Nanoseconds() / interval.Nanoseconds())
@@ -46,8 +48,8 @@ func wrapCallbacks(
 			case p := <-pktCh:
 				processPkt(pending, p, t, timeout, onTimeout)
 				continue
-			case <-t.C:
-				processTimeout(pending, t, timeout, onTimeout)
+			case n := <-t.C:
+				processTimeout(pending, t, timeout, onTimeout, n)
 			case <-stop:
 				return
 			}
@@ -61,6 +63,13 @@ func wrapCallbacks(
 		pktCh <- &pkt{sent: p}
 	}
 
+	rOnSendError := func(p *packet.SentPacket) {
+		if onSendError != nil {
+			go onSendError(p)
+		}
+		pktCh <- &pkt{err: p}
+	}
+
 	rOnReply := func(p *packet.Packet) {
 		if onReply != nil {
 			go onReply(p)
@@ -68,12 +77,13 @@ func wrapCallbacks(
 		pktCh <- &pkt{recv: p}
 	}
 
-	return rOnReply, rOnSend
+	return rOnReply, rOnSend, rOnSendError
 }
 
 type pkt struct {
 	sent *packet.SentPacket
 	recv *packet.Packet
+	err  *packet.SentPacket
 }
 
 func processPkt(pending map[int]*packet.SentPacket, p *pkt, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket)) {
@@ -84,22 +94,23 @@ func processPkt(pending map[int]*packet.SentPacket, p *pkt, t *time.Timer, timeo
 		}
 	}
 	if p.recv != nil {
-		if p.recv.Sent.Add(timeout).Before(time.Now()) {
+		if p.recv.Sent.Add(timeout).Before(p.recv.Recieved) {
 			if onTimeout != nil {
 				go onTimeout(p.recv.ToSentPacket())
 			}
 		}
 		delete(pending, p.recv.Seq)
 	}
+	if p.err != nil {
+		delete(pending, p.err.Seq)
+	}
+	if len(pending) == 0 {
+		stopTimer(t)
+	}
 }
 
 func resetTimer(t *time.Timer, s time.Time, d time.Duration) {
-	if !t.Stop() {
-		select {
-		case <-t.C:
-		default:
-		}
-	}
+	stopTimer(t)
 	rd := s.Add(d).Sub(time.Now())
 	if rd < time.Nanosecond {
 		rd = time.Nanosecond
@@ -107,10 +118,19 @@ func resetTimer(t *time.Timer, s time.Time, d time.Duration) {
 	t.Reset(rd)
 }
 
-func processTimeout(pending map[int]*packet.SentPacket, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket)) {
+func stopTimer(t *time.Timer) {
+	if !t.Stop() {
+		select {
+		case <-t.C:
+		default:
+		}
+	}
+}
+
+func processTimeout(pending map[int]*packet.SentPacket, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket), n time.Time) {
 	var resetS time.Time
 	for s, p := range pending {
-		if p.Sent.Add(timeout).Before(time.Now()) {
+		if p.Sent.Add(timeout).Before(n) {
 			if onTimeout != nil {
 				go onTimeout(p)
 			}
