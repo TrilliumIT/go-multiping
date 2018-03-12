@@ -16,6 +16,8 @@ type Dst struct {
 	// Count is the count of pings to be sent
 	count int
 
+	// randDelay controls whether the first ping will be dalayed by a random amount of time between 0 and interval
+	randDelay bool
 	// callbacks
 	onReply        func(*packet.Packet)
 	onSend         func(*packet.SentPacket)
@@ -66,6 +68,11 @@ func (d *Dst) SetOnTimeout(f func(*packet.SentPacket)) {
 // If this is set, the host is re-resolved before sending each ping.
 func (d *Dst) SetOnResolveError(f func(*packet.SentPacket, error)) {
 	d.onResolveError = f
+}
+
+// EnableRandDelay enables randomly delaying the first packet up to interval
+func (d *Dst) EnableRandDelay() {
+	d.randDelay = true
 }
 
 /*

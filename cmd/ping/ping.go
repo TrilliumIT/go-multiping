@@ -16,7 +16,7 @@ import (
 var usage = `
 Usage:
 
-    ping [-c count] [-i interval] [-t timeout] [-r] host host2 host3
+    ping [-c count] [-i interval] [-t timeout] [-r] [-d] host host2 host3
 
 Examples:
 
@@ -38,6 +38,7 @@ func main() {
 	interval := flag.Duration("i", time.Second, "")
 	count := flag.Int("c", 0, "")
 	reResolve := flag.Bool("r", false, "")
+	randDelay := flag.Bool("d", false, "")
 	flag.Usage = func() {
 		fmt.Printf(usage)
 	}
@@ -77,6 +78,9 @@ func main() {
 			d.SetOnResolveError(func(p *packet.SentPacket, err error) {
 				fmt.Printf("Error resolving %v: %v\n", h, err)
 			})
+		}
+		if *randDelay {
+			d.EnableRandDelay()
 		}
 		d.SetOnSendError(func(pkt *packet.SentPacket, err error) {
 			fmt.Printf("Error sending to %v: %v\n", h, err)

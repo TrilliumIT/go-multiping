@@ -34,9 +34,22 @@ func (d *Dst) Run() error {
 
 	t := make(chan struct{})
 	go func() {
+		var rd time.Duration
+		if d.randDelay {
+			rd = time.Duration(rand.Int63n(d.interval.Nanoseconds()))
+		}
+		ft := time.NewTimer(rd)
+		select {
+		case <-ft.C:
+			t <- struct{}{}
+		case <-d.stop:
+			ft.Stop()
+			return
+		}
+		ft.Stop()
+
 		ti := time.NewTicker(d.interval)
 		defer ti.Stop()
-		t <- struct{}{}
 		for {
 			select {
 			case <-ti.C:
