@@ -11,8 +11,7 @@ import (
 // PingDest is a ping destination
 type Dst struct {
 	// Dest is the net.IP to be pinged
-	dst    *net.IPAddr
-	dstStr string
+	dst *net.IPAddr
 	// Interval is the ping interval
 	interval time.Duration
 	// Timeout is how long to wait after the last packet is sent
@@ -33,29 +32,20 @@ type Dst struct {
 }
 
 // NewDst creates a PingDest object
-func NewDst(dst string, interval, timeout time.Duration, count int) (*Dst, error) {
+func NewDst(dst *net.IPAddr, interval, timeout time.Duration, count int) *Dst {
 	return getGlobalPinger().NewDst(dst, interval, timeout, count)
 }
 
 // NewDst creates a PingDest object
-func (p *Pinger) NewDst(dst string, interval, timeout time.Duration, count int) (*Dst, error) {
-	d := &Dst{
-		dstStr:   dst,
+func (p *Pinger) NewDst(dst *net.IPAddr, interval, timeout time.Duration, count int) *Dst {
+	return &Dst{
+		dst:      dst,
 		interval: interval,
+		pinger:   p.getProtoPinger(dst.IP),
 		timeout:  timeout,
 		count:    count,
 		stop:     make(chan struct{}),
 	}
-
-	var err error
-	d.dst, err = net.ResolveIPAddr("ip", dst)
-	if err != nil {
-		return nil, err
-	}
-	//d.dst, _ = net.ResolveIPAddr("ip", d.dst.IP.String())
-
-	d.pinger = p.getProtoPinger(d.dst.IP)
-	return d, err
 }
 
 func (d *Dst) SetOnReply(f func(*packet.Packet)) {
