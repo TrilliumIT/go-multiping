@@ -74,7 +74,7 @@ func main() {
 		d.SetOnReply(onReply)
 		d.SetOnTimeout(onTimeout)
 		if *reResolve {
-			d.SetOnResolveError(func(err error) {
+			d.SetOnResolveError(func(p *packet.SentPacket, err error) {
 				fmt.Printf("Error resolving %v: %v\n", h, err)
 			})
 		}

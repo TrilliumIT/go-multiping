@@ -59,7 +59,11 @@ func (d *Dst) Run() error {
 				return err
 			}
 			if err != nil {
-				d.onResolveError(err)
+				d.onResolveError(&packet.SentPacket{
+					ID:   e.ID,
+					Seq:  e.Seq,
+					Sent: time.Now(),
+				}, err)
 				continue
 			}
 			if changed {

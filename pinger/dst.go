@@ -21,7 +21,7 @@ type Dst struct {
 	onSend         func(*packet.SentPacket)
 	onSendError    func(*packet.SentPacket, error)
 	onTimeout      func(*packet.SentPacket)
-	onResolveError func(error)
+	onResolveError func(*packet.SentPacket, error)
 	//onOutOfOrder func(*packet.Packet)
 
 	pinger *Pinger
@@ -64,7 +64,7 @@ func (d *Dst) SetOnTimeout(f func(*packet.SentPacket)) {
 // SetOnResolveError sets a callback to be called when a resolution
 // error occurs. If this is not set, the host is only resolved once.
 // If this is set, the host is re-resolved before sending each ping.
-func (d *Dst) SetOnResolveError(f func(error)) {
+func (d *Dst) SetOnResolveError(f func(*packet.SentPacket, error)) {
 	d.onResolveError = f
 }
 
