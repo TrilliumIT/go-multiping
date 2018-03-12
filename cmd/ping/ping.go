@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -69,13 +68,12 @@ func main() {
 	var wg sync.WaitGroup
 	var stops []func()
 	for _, h := range flag.Args() {
-		dst, err := net.ResolveIPAddr("ip", h)
+		d, err := pinger.NewDst(h, *interval, *timeout, *count)
+		d.SetOnReply(onReply)
+		d.SetOnTimeout(onTimeout)
 		if err != nil {
 			panic(err)
 		}
-		d := pinger.NewDst(dst, *interval, *timeout, *count)
-		d.SetOnReply(onReply)
-		d.SetOnTimeout(onTimeout)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
