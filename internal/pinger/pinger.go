@@ -68,7 +68,7 @@ func New(v int) *Pinger {
 
 func dstKey(ip net.IP, id int) [18]byte {
 	var r [18]byte
-	copy(r[0:15], ip.To16())
+	copy(r[0:16], ip.To16())
 	binary.LittleEndian.PutUint16(r[16:], uint16(id))
 	return r
 }

@@ -9,7 +9,7 @@ import (
 func wrapCallbacks(
 	onReply func(*packet.Packet),
 	onSend func(*packet.SentPacket),
-	onSendError func(*packet.SentPacket),
+	onSendError func(*packet.SentPacket, error),
 	onTimeout func(*packet.SentPacket),
 	stop <-chan struct{},
 	timeout time.Duration,
@@ -17,7 +17,7 @@ func wrapCallbacks(
 ) (
 	func(*packet.Packet),
 	func(*packet.SentPacket),
-	func(*packet.SentPacket),
+	func(*packet.SentPacket, error),
 ) {
 	if onTimeout == nil {
 		return onReply, onSend, onSendError
@@ -63,11 +63,15 @@ func wrapCallbacks(
 		pktCh <- &pkt{sent: p}
 	}
 
-	rOnSendError := func(p *packet.SentPacket) {
-		if onSendError != nil {
-			go onSendError(p)
+	var rOnSendError func(*packet.SentPacket, error)
+
+	if onSendError != nil {
+		rOnSendError = func(p *packet.SentPacket, err error) {
+			if onSendError != nil {
+				go onSendError(p, err)
+			}
+			pktCh <- &pkt{err: p}
 		}
-		pktCh <- &pkt{err: p}
 	}
 
 	rOnReply := func(p *packet.Packet) {

@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime/pprof"
+	//"runtime/pprof"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/clinta/go-multiping/packet"
@@ -17,7 +16,7 @@ import (
 var usage = `
 Usage:
 
-    ping [-c count] [-i interval] [-t timeout] host host2 host3
+    ping [-c count] [-i interval] [-t timeout] [-r] host host2 host3
 
 Examples:
 
@@ -30,17 +29,15 @@ Examples:
     # ping google 5 times at 500ms intervals
     ping -c 5 -i 500ms www.google.com
 
-    # ping google for 10 seconds
-    ping -t 10s www.google.com
-
-    # Send a privileged raw ICMP ping
-    sudo ping --privileged www.google.com
+    # ping google with a 500ms timeout re-resolving dns every ping
+    ping -t 500ms -r www.google.com
 `
 
 func main() {
 	timeout := flag.Duration("t", time.Second, "")
 	interval := flag.Duration("i", time.Second, "")
 	count := flag.Int("c", 0, "")
+	reResolve := flag.Bool("r", false, "")
 	flag.Usage = func() {
 		fmt.Printf(usage)
 	}
@@ -52,15 +49,20 @@ func main() {
 	}
 
 	var recieved, dropped uint64
+	var clock sync.Mutex
 
 	onReply := func(pkt *packet.Packet) {
-		atomic.AddUint64(&recieved, 1)
+		clock.Lock()
+		defer clock.Unlock()
+		recieved += 1
 		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT, pkt.TTL, pkt.Seq, pkt.ID)
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
 
 	onTimeout := func(pkt *packet.SentPacket) {
-		atomic.AddUint64(&dropped, 1)
+		clock.Lock()
+		defer clock.Unlock()
+		dropped += 1
 		fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
@@ -68,16 +70,22 @@ func main() {
 	var wg sync.WaitGroup
 	var stops []func()
 	for _, h := range flag.Args() {
-		d, err := pinger.NewDst(h, *interval, *timeout, *count)
+		d := pinger.NewDst(h, *interval, *timeout, *count)
 		d.SetOnReply(onReply)
 		d.SetOnTimeout(onTimeout)
-		if err != nil {
-			panic(err)
+		if *reResolve {
+			d.SetOnResolveError(func(err error) {
+				fmt.Printf("Error resolving %v: %v\n", h, err)
+			})
 		}
+		d.SetOnSendError(func(pkt *packet.SentPacket, err error) {
+			fmt.Printf("Error sending to %v: %v\n", h, err)
+		})
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err = d.Run()
+			err := d.Run()
 			if err != nil {
 				panic(err)
 			}
@@ -89,7 +97,7 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		//pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		for _, s := range stops {
 			s()
 		}

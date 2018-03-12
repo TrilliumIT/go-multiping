@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/net/icmp"
 
+	protoPinger "github.com/clinta/go-multiping/internal/pinger"
 	"github.com/clinta/go-multiping/packet"
 )
 
@@ -23,7 +24,6 @@ func (d *Dst) Run() error {
 		Data: packet.TimeToBytes(time.Now()),
 	}
 	m := &icmp.Message{
-		Type: d.pinger.SendType(),
 		Code: 0,
 		Body: e,
 	}
@@ -31,12 +31,6 @@ func (d *Dst) Run() error {
 	onReply, onSend, onSendError := wrapCallbacks(
 		d.onReply, d.onSend, d.onSendError, d.onTimeout,
 		d.stop, d.timeout, d.interval)
-
-	err := d.pinger.AddCallBack(d.dst.IP, e.ID, onReply)
-	if err != nil {
-		return err
-	}
-	defer d.pinger.DelCallBack(d.dst.IP, e.ID)
 
 	t := make(chan struct{})
 	go func() {
@@ -54,8 +48,34 @@ func (d *Dst) Run() error {
 		}
 	}()
 
+	var dst *net.IPAddr
+	var pp *protoPinger.Pinger
+	var delCallback func() = func() {}
+	defer func() { delCallback() }()
 	for range t {
-		err := d.send(m, onSend, onSendError)
+		if dst == nil || d.onResolveError != nil {
+			nDst, nPP, changed, err := d.resolve(dst, pp)
+			if err != nil && d.onResolveError == nil {
+				return err
+			}
+			if err != nil {
+				d.onResolveError(err)
+				continue
+			}
+			if changed {
+				err := nPP.AddCallBack(nDst.IP, e.ID, onReply)
+				if err != nil {
+					return err
+				}
+				delCallback()
+				delCallback = func() {
+					pp.DelCallBack(dst.IP, e.ID)
+				}
+				m.Type = nPP.SendType()
+				dst, pp = nDst, nPP
+			}
+		}
+		err := send(dst, pp, m, onSend, onSendError)
 		if err != nil {
 			return err
 		}
@@ -75,13 +95,25 @@ func (d *Dst) Run() error {
 	return nil
 }
 
-func (d *Dst) send(m *icmp.Message, onSend, onSendError func(*packet.SentPacket)) error {
+func (d *Dst) resolve(dst *net.IPAddr, pp *protoPinger.Pinger) (*net.IPAddr, *protoPinger.Pinger, bool, error) {
+	rdst, err := net.ResolveIPAddr("ip", d.host)
+	if err != nil {
+		return dst, pp, false, err
+	}
+
+	if dst != nil && rdst.IP.Equal(dst.IP) {
+		return dst, pp, false, nil
+	}
+
+	return rdst, d.pinger.getProtoPinger(rdst.IP), true, nil
+}
+
+func send(dst *net.IPAddr, pp *protoPinger.Pinger, m *icmp.Message, onSend func(*packet.SentPacket), onSendError func(*packet.SentPacket, error)) error {
 	e, ok := m.Body.(*icmp.Echo)
 	if !ok {
 		return fmt.Errorf("invalid icmp message")
 	}
 
-	var err error
 	for {
 		t := time.Now()
 		e.Data = packet.TimeToBytes(t)
@@ -91,7 +123,7 @@ func (d *Dst) send(m *icmp.Message, onSend, onSendError func(*packet.SentPacket)
 		}
 
 		sp := &packet.SentPacket{
-			Dst:  d.dst.IP,
+			Dst:  dst.IP,
 			ID:   e.ID,
 			Seq:  e.Seq,
 			Sent: t,
@@ -100,7 +132,7 @@ func (d *Dst) send(m *icmp.Message, onSend, onSendError func(*packet.SentPacket)
 			onSend(sp)
 		}
 
-		_, err = d.pinger.Conn.WriteTo(b, d.dst)
+		_, err = pp.Conn.WriteTo(b, dst)
 		if err != nil {
 			if neterr, ok := err.(*net.OpError); ok {
 				if neterr.Err == syscall.ENOBUFS {
@@ -108,10 +140,12 @@ func (d *Dst) send(m *icmp.Message, onSend, onSendError func(*packet.SentPacket)
 				}
 			}
 			if onSendError != nil {
-				onSendError(sp)
+				onSendError(sp, err)
+			} else {
+				return err
 			}
 		}
 		break
 	}
-	return err
+	return nil
 }

@@ -85,7 +85,9 @@ func (p *Pinger) listen() (func(), error) {
 				if p.Conn.IPv6PacketConn() == nil {
 					return
 				}
-				r := &recvMsg{}
+				r := &recvMsg{
+					payload: make([]byte, p.expectedLen, p.expectedLen),
+				}
 				var err error
 				r.payloadLen, r.v6cm, _, err = p.Conn.IPv6PacketConn().ReadFrom(r.payload)
 				if err != nil {
