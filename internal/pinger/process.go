@@ -62,7 +62,8 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 	p.ID = e.ID
 	p.Seq = e.Seq
 
-	if len(e.Data) < packet.TimeSliceLength {
+	p.Sent, err = packet.BytesToTime(e.Data)
+	if err != nil {
 		return
 	}
 
@@ -76,7 +77,6 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 	}
 
 	p.Len = r.payloadLen
-	p.Sent = packet.BytesToTime(e.Data)
 	p.RTT = p.Recieved.Sub(p.Sent)
 
 	cb(p)

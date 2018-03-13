@@ -2,6 +2,7 @@ package packet
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
 	"time"
 )
@@ -56,7 +57,9 @@ func TimeToBytes(t time.Time) []byte {
 }
 
 // BytesToTime converst a []byte into a time.Time
-// TODO check length of b and return err to avoid panic
-func BytesToTime(b []byte) time.Time {
-	return time.Unix(0, int64(binary.LittleEndian.Uint64(b[:TimeSliceLength])))
+func BytesToTime(b []byte) (time.Time, error) {
+	if len(b) < TimeSliceLength {
+		return time.Time{}, fmt.Errorf("too short")
+	}
+	return time.Unix(0, int64(binary.LittleEndian.Uint64(b[:TimeSliceLength]))), nil
 }
