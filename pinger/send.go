@@ -65,8 +65,8 @@ func (d *Dst) Run() error {
 
 	var dst *net.IPAddr
 	var pp *protoPinger.Pinger
-	var delCallback = func() {}
-	defer func() { delCallback() }()
+	var delCallback = func() error { return nil }
+	defer func() { _ = delCallback() }()
 	for range t {
 		if dst == nil || d.onResolveError != nil {
 			nDst, nPP, changed, err := d.resolve(dst, pp)
@@ -86,9 +86,12 @@ func (d *Dst) Run() error {
 				if err != nil {
 					return err
 				}
-				delCallback()
-				delCallback = func() {
-					pp.DelCallBack(dst.IP, e.ID)
+				err = delCallback()
+				if err != nil {
+					return err
+				}
+				delCallback = func() error {
+					return pp.DelCallBack(dst.IP, e.ID)
 				}
 				m.Type = nPP.SendType()
 				dst, pp = nDst, nPP
@@ -111,7 +114,11 @@ func (d *Dst) Run() error {
 		d.Stop()
 	}
 
-	return nil
+	// we didn't early return, we should check err from delCallback instead of letting defer handle it
+	err := delCallback()
+	// so the defer is okay
+	delCallback = func() error { return nil }
+	return err
 }
 
 func (d *Dst) resolve(dst *net.IPAddr, pp *protoPinger.Pinger) (*net.IPAddr, *protoPinger.Pinger, bool, error) {
