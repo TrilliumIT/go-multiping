@@ -33,18 +33,19 @@ func New(v int) *Pinger {
 	}
 
 	var typ icmp.Type
-	if v == 4 {
+	switch {
+	case v == 4:
 		p.network = "ip4:icmp"
 		p.src = "0.0.0.0"
 		p.sendType = ipv4.ICMPTypeEcho
 		typ = ipv4.ICMPTypeEcho
-	}
-
-	if v == 6 {
+	case v == 6:
 		p.network = "ip6:ipv6-icmp"
 		p.src = "::"
 		p.sendType = ipv6.ICMPTypeEchoRequest
 		typ = ipv6.ICMPTypeEchoReply
+	default:
+		panic("invalid pinger type")
 	}
 
 	if m, err := (&icmp.Message{
