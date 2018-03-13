@@ -21,8 +21,8 @@ const (
 // SentPacket is an ICMP echo that has been sent, or attempted to be sent
 type SentPacket struct {
 	Dst  net.IP
-	ID   int
-	Seq  int
+	ID   uint16
+	Seq  uint16
 	Sent time.Time
 }
 
@@ -30,7 +30,7 @@ type SentPacket struct {
 type Packet struct {
 	SentPacket
 	Src      net.IP
-	TTL      int
+	TTL      uint8
 	Len      int
 	Recieved time.Time
 	RTT      time.Duration

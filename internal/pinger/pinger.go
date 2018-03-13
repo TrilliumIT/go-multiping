@@ -61,10 +61,10 @@ func New(v int) *Pinger {
 	return p
 }
 
-func dstKey(ip net.IP, id int) [18]byte {
+func dstKey(ip net.IP, id uint16) [18]byte {
 	var r [18]byte
 	copy(r[0:16], ip.To16())
-	binary.LittleEndian.PutUint16(r[16:], uint16(id))
+	binary.LittleEndian.PutUint16(r[16:], id)
 	return r
 }
 
@@ -79,7 +79,7 @@ func (pp *Pinger) Network() string {
 }
 
 // GetCallback returns the OnRecieve callback for for a given IP and icmp id
-func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*packet.Packet), bool) {
+func (pp *Pinger) GetCallback(ip net.IP, id uint16) (func(*packet.Packet), bool) {
 	k := dstKey(ip, id)
 	pp.cbLock.RLock()
 	defer pp.cbLock.RUnlock()
@@ -87,9 +87,17 @@ func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*packet.Packet), bool) {
 	return v, ok
 }
 
+// ErrorAlreadyExists is returned if a callback already exists.
+// Used to detect icmp ID conflicts
+type ErrorAlreadyExists struct{}
+
+func (e *ErrorAlreadyExists) Error() string {
+	return "callback already exists"
+}
+
 // AddCallBack adds an OnRecieve callback for a given IP and icmp id
 // This implicitly starts the listening for these packets
-func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error {
+func (pp *Pinger) AddCallBack(ip net.IP, id uint16, cb func(*packet.Packet)) error {
 	if ip == nil {
 		return fmt.Errorf("invalid ip")
 	}
@@ -100,7 +108,7 @@ func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error 
 	pp.cbLock.Lock()
 	defer pp.cbLock.Unlock()
 	if _, ok := pp.callbacks[k]; ok {
-		return fmt.Errorf("pinger %v already exists", k)
+		return &ErrorAlreadyExists{}
 	}
 	pp.callbacks[k] = cb
 	if len(pp.callbacks) == 1 {
@@ -116,7 +124,7 @@ func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error 
 
 // DelCallBack deletes a callback for a given IP and icmp id
 // This stops listening for these packets
-func (pp *Pinger) DelCallBack(ip net.IP, id int) error {
+func (pp *Pinger) DelCallBack(ip net.IP, id uint16) error {
 	k := dstKey(ip, id)
 	pp.cbLock.Lock()
 	defer pp.cbLock.Unlock()

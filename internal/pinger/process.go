@@ -26,14 +26,14 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 	if r.v4cm != nil {
 		p.Src = r.v4cm.Src
 		p.Dst = r.v4cm.Dst
-		p.TTL = r.v4cm.TTL
+		p.TTL = uint8(r.v4cm.TTL)
 		proto = packet.ProtocolICMP
 		typ = ipv4.ICMPTypeEchoReply
 	}
 	if r.v6cm != nil {
 		p.Src = r.v6cm.Src
 		p.Dst = r.v6cm.Dst
-		p.TTL = r.v6cm.HopLimit
+		p.TTL = uint8(r.v6cm.HopLimit)
 		proto = packet.ProtocolIPv6ICMP
 		typ = ipv6.ICMPTypeEchoReply
 	}
@@ -59,8 +59,8 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 	if !ok {
 		return
 	}
-	p.ID = e.ID
-	p.Seq = e.Seq
+	p.ID = uint16(e.ID)
+	p.Seq = uint16(e.Seq)
 
 	p.Sent, err = packet.BytesToTime(e.Data)
 	if err != nil {

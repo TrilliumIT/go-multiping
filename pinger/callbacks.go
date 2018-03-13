@@ -33,7 +33,7 @@ func wrapCallbacks(
 		if !t.Stop() {
 			<-t.C
 		}
-		pending := make(map[int]*packet.SentPacket)
+		pending := make(map[uint16]*packet.SentPacket)
 		for {
 			select {
 			case p := <-pktCh:
@@ -96,18 +96,18 @@ type pkt struct {
 	err  *packet.SentPacket
 }
 
-func processPkt(pending map[int]*packet.SentPacket, p *pkt, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket)) {
+func processPkt(pending map[uint16]*packet.SentPacket, p *pkt, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket)) {
 	if p.sent != nil {
-		pending[p.sent.Seq] = p.sent
+		pending[uint16(p.sent.Seq)] = p.sent
 		if len(pending) == 1 {
 			resetTimer(t, p.sent.Sent, timeout)
 		}
 	}
 	if p.recv != nil {
-		delete(pending, p.recv.Seq)
+		delete(pending, uint16(p.recv.Seq))
 	}
 	if p.err != nil {
-		delete(pending, p.err.Seq)
+		delete(pending, uint16(p.err.Seq))
 	}
 	if len(pending) == 0 {
 		stopTimer(t)
@@ -132,7 +132,7 @@ func stopTimer(t *time.Timer) {
 	}
 }
 
-func processTimeout(pending map[int]*packet.SentPacket, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket), n time.Time) {
+func processTimeout(pending map[uint16]*packet.SentPacket, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket), n time.Time) {
 	var resetS time.Time
 	for s, p := range pending {
 		if p.Sent.Add(timeout).Before(n) {

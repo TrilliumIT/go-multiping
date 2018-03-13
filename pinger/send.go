@@ -67,7 +67,9 @@ func (d *Dst) Run() error {
 	var pp *protoPinger.Pinger
 	var delCallback = func() error { return nil }
 	defer func() { _ = delCallback() }()
+	count := 0
 	for range t {
+		id, seq := uint16(e.ID), uint16(e.Seq)
 		if dst == nil || d.onResolveError != nil {
 			nDst, nPP, changed, err := d.resolve(dst, pp)
 			if err != nil && d.onResolveError == nil {
@@ -75,15 +77,20 @@ func (d *Dst) Run() error {
 			}
 			if err != nil {
 				d.onResolveError(&packet.SentPacket{
-					ID:   e.ID,
-					Seq:  e.Seq,
+					ID:   id,
+					Seq:  seq,
 					Sent: time.Now(),
 				}, err)
 				continue
 			}
 			if changed {
-				err := nPP.AddCallBack(nDst.IP, e.ID, onReply)
+				err := nPP.AddCallBack(nDst.IP, id, onReply)
 				if err != nil {
+					if _, ok := err.(*protoPinger.ErrorAlreadyExists); ok {
+						// Try a different ID
+						e.ID = rand.Intn(1<<16 - 1)
+						continue
+					}
 					return err
 				}
 				err = delCallback()
@@ -91,7 +98,7 @@ func (d *Dst) Run() error {
 					return err
 				}
 				delCallback = func() error {
-					return pp.DelCallBack(dst.IP, e.ID)
+					return pp.DelCallBack(dst.IP, id)
 				}
 				m.Type = nPP.SendType()
 				dst, pp = nDst, nPP
@@ -101,8 +108,9 @@ func (d *Dst) Run() error {
 		if err != nil {
 			return err
 		}
-		e.Seq = int(uint16(e.Seq + 1))
-		if d.count > 0 && e.Seq >= d.count {
+		e.Seq = int(seq + 1)
+		count++
+		if d.count > 0 && count >= d.count {
 			time.Sleep(d.timeout)
 			break
 		}
@@ -150,8 +158,8 @@ func send(dst *net.IPAddr, pp *protoPinger.Pinger, m *icmp.Message, onSend func(
 
 		sp := &packet.SentPacket{
 			Dst:  dst.IP,
-			ID:   e.ID,
-			Seq:  e.Seq,
+			ID:   uint16(e.ID),
+			Seq:  uint16(e.Seq),
 			Sent: t,
 		}
 		if onSend != nil {
