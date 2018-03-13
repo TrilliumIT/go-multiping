@@ -40,7 +40,7 @@ func main() {
 	reResolve := flag.Bool("r", false, "")
 	randDelay := flag.Bool("d", false, "")
 	flag.Usage = func() {
-		fmt.Printf(usage)
+		fmt.Print(usage)
 	}
 	flag.Parse()
 
@@ -55,7 +55,7 @@ func main() {
 	onReply := func(pkt *packet.Packet) {
 		clock.Lock()
 		defer clock.Unlock()
-		recieved += 1
+		recieved++
 		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT, pkt.TTL, pkt.Seq, pkt.ID)
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
@@ -63,7 +63,7 @@ func main() {
 	onTimeout := func(pkt *packet.SentPacket) {
 		clock.Lock()
 		defer clock.Unlock()
-		dropped += 1
+		dropped++
 		fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
