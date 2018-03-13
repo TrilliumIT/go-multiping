@@ -1,6 +1,7 @@
 package pinger
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -19,18 +20,16 @@ func (p *Pinger) listen() (func() error, error) {
 		return retF, err
 	}
 
-	if p.Conn.IPv4PacketConn() != nil {
+	switch {
+	case p.Conn.IPv4PacketConn() != nil:
 		err = p.Conn.IPv4PacketConn().SetControlMessage(ipv4.FlagDst|ipv4.FlagSrc|ipv4.FlagTTL, true)
-		if err != nil {
-			return retF, err
-		}
-	}
-
-	if p.Conn.IPv6PacketConn() != nil {
+	case p.Conn.IPv6PacketConn() != nil:
 		err = p.Conn.IPv6PacketConn().SetControlMessage(ipv6.FlagDst|ipv6.FlagSrc|ipv6.FlagHopLimit, true)
-		if err != nil {
-			return retF, err
-		}
+	default:
+		err = fmt.Errorf("no valid packet connections")
+	}
+	if err != nil {
+		return retF, err
 	}
 
 	var swg sync.WaitGroup
@@ -67,11 +66,13 @@ func (p *Pinger) listen() (func() error, error) {
 					payload: make([]byte, p.expectedLen),
 				}
 				var err error
-				if p.Conn.IPv6PacketConn() != nil {
-					r.payloadLen, r.v6cm, _, err = p.Conn.IPv6PacketConn().ReadFrom(r.payload)
-				}
-				if p.Conn.IPv4PacketConn() != nil {
+				switch {
+				case p.Conn.IPv4PacketConn() != nil:
 					r.payloadLen, r.v4cm, _, err = p.Conn.IPv4PacketConn().ReadFrom(r.payload)
+				case p.Conn.IPv6PacketConn() != nil:
+					r.payloadLen, r.v6cm, _, err = p.Conn.IPv6PacketConn().ReadFrom(r.payload)
+				default:
+					panic("no valid connections")
 				}
 				if err != nil {
 					continue
