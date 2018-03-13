@@ -116,7 +116,7 @@ func processPkt(pending map[int]*packet.SentPacket, p *pkt, t *time.Timer, timeo
 
 func resetTimer(t *time.Timer, s time.Time, d time.Duration) {
 	stopTimer(t)
-	rd := s.Add(d).Sub(time.Now())
+	rd := time.Until(s.Add(d))
 	if rd < time.Nanosecond {
 		rd = time.Nanosecond
 	}

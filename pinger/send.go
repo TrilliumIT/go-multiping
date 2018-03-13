@@ -17,6 +17,8 @@ func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
+// Run runs the ping. It blocks until an error is returned or the ping is stopped.
+// After calling Stop(), Run will continue to block for timeout to allow the last packet to be returned.
 func (d *Dst) Run() error {
 	e := &icmp.Echo{
 		ID:   rand.Intn(1<<16 - 1),
@@ -63,7 +65,7 @@ func (d *Dst) Run() error {
 
 	var dst *net.IPAddr
 	var pp *protoPinger.Pinger
-	var delCallback func() = func() {}
+	var delCallback = func() {}
 	defer func() { delCallback() }()
 	for range t {
 		if dst == nil || d.onResolveError != nil {

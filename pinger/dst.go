@@ -6,7 +6,7 @@ import (
 	"github.com/clinta/go-multiping/packet"
 )
 
-// PingDest is a ping destination
+// Dst is a destination host to be pinged
 type Dst struct {
 	host string
 	// Interval is the ping interval
@@ -30,12 +30,12 @@ type Dst struct {
 	stop   chan struct{}
 }
 
-// NewDst creates a PingDest object
+// NewDst creates a Dst
 func NewDst(host string, interval, timeout time.Duration, count int) *Dst {
 	return getGlobalPinger().NewDst(host, interval, timeout, count)
 }
 
-// NewDst creates a PingDest object
+// NewDst creates a Dst
 func (p *Pinger) NewDst(host string, interval, timeout time.Duration, count int) *Dst {
 	return &Dst{
 		host:     host,
@@ -47,40 +47,41 @@ func (p *Pinger) NewDst(host string, interval, timeout time.Duration, count int)
 	}
 }
 
+// SetOnReply sets f to be called every time an ICMP reply is recieved
 func (d *Dst) SetOnReply(f func(*packet.Packet)) {
 	d.onReply = f
 }
 
+// SetOnSend sets f to be called every time a packet is sent
 func (d *Dst) SetOnSend(f func(*packet.SentPacket)) {
 	d.onSend = f
 }
 
+// SetOnSendError sets f to be called every time an error is encountered sending. For example a no-route to host error.
+// If this is not set, Run() will stop and return error when sending encounters an error
 func (d *Dst) SetOnSendError(f func(*packet.SentPacket, error)) {
 	d.onSendError = f
 }
 
+// SetOnTimeout sets f to be called every time an ICMP reply is not recieved within timeout
 func (d *Dst) SetOnTimeout(f func(*packet.SentPacket)) {
 	d.onTimeout = f
 }
 
 // SetOnResolveError sets a callback to be called when a resolution
-// error occurs. If this is not set, the host is only resolved once.
+// error occurs. If this is not set, the host is only resolved once at the beginning of Run(). If an error occurs at this time, it is returned to Run().
 // If this is set, the host is re-resolved before sending each ping.
 func (d *Dst) SetOnResolveError(f func(*packet.SentPacket, error)) {
 	d.onResolveError = f
 }
 
-// EnableRandDelay enables randomly delaying the first packet up to interval
+// EnableRandDelay enables randomly delaying the first packet up to interval.
 func (d *Dst) EnableRandDelay() {
 	d.randDelay = true
 }
 
-/*
-func (d *Dst) SetOnOutOfOrder(f func(*packet.Packet)) {
-	d.onOutOfOrder = f
-}
-*/
-
+// Stop stops a runnning ping. This will panic if the ping is not running.
+// The caller should wait until Run() returns after calling Stop().
 func (d *Dst) Stop() {
 	close(d.stop)
 }
