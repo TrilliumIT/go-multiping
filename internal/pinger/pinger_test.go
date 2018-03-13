@@ -114,11 +114,13 @@ func delCB(t *testing.T, p *Pinger, ip string, id int) {
 
 func TestCallBackListenersV4(t *testing.T) {
 	initGoRoutines := runtime.NumGoroutine()
-	cb := func(*packet.Packet) {}
+	r1, r2 := 0
+	cb1 := func(*packet.Packet) { r1++ }
+	cb2 := func(*packet.Packet) { r2++ }
 	p := New(4)
-	addCb(t, p, "127.0.0.1", 123, cb, initGoRoutines)
+	addCb(t, p, "127.0.0.1", 123, cb1, initGoRoutines)
 	singleListenerGoRoutines := runtime.NumGoroutine()
-	addCb(t, p, "127.0.0.2", 123, cb, initGoRoutines)
+	addCb(t, p, "127.0.0.2", 123, cb2, initGoRoutines)
 	if runtime.NumGoroutine() != singleListenerGoRoutines {
 		fmt.Println(runtime.NumGoroutine() - singleListenerGoRoutines)
 		t.Error("listeners changing")
