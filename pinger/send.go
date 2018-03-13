@@ -1,13 +1,9 @@
 package pinger
 
 import (
-	"fmt"
 	"math/rand"
 	"net"
-	"syscall"
 	"time"
-
-	"golang.org/x/net/icmp"
 
 	protoPinger "github.com/clinta/go-multiping/internal/pinger"
 	"github.com/clinta/go-multiping/packet"
@@ -20,15 +16,7 @@ func init() {
 // Run runs the ping. It blocks until an error is returned or the ping is stopped.
 // After calling Stop(), Run will continue to block for timeout to allow the last packet to be returned.
 func (d *Dst) Run() error {
-	e := &icmp.Echo{
-		ID:   rand.Intn(1<<16 - 1),
-		Seq:  0,
-		Data: packet.TimeToBytes(time.Now()),
-	}
-	m := &icmp.Message{
-		Code: 0,
-		Body: e,
-	}
+	e, m := protoPinger.NewEcho()
 
 	onReply, onSend, onSendError := wrapCallbacks(
 		d.onReply, d.onSend, d.onSendError, d.onTimeout,
@@ -103,7 +91,7 @@ func (d *Dst) Run() error {
 				dst, pp = nDst, nPP
 			}
 		}
-		err := send(dst, pp, m, onSend, onSendError)
+		err := pp.Send(dst, m, onSend, onSendError)
 		if err != nil {
 			return err
 		}
@@ -139,46 +127,4 @@ func (d *Dst) resolve(dst *net.IPAddr, pp *protoPinger.Pinger) (*net.IPAddr, *pr
 	}
 
 	return rdst, d.pinger.getProtoPinger(rdst.IP), true, nil
-}
-
-func send(dst *net.IPAddr, pp *protoPinger.Pinger, m *icmp.Message, onSend func(*packet.SentPacket), onSendError func(*packet.SentPacket, error)) error {
-	e, ok := m.Body.(*icmp.Echo)
-	if !ok {
-		return fmt.Errorf("invalid icmp message")
-	}
-
-	for {
-		t := time.Now()
-		e.Data = packet.TimeToBytes(t)
-		b, err := m.Marshal(nil)
-		if err != nil {
-			return err
-		}
-
-		sp := &packet.SentPacket{
-			Dst:  dst.IP,
-			ID:   e.ID,
-			Seq:  e.Seq,
-			Sent: t,
-		}
-		if onSend != nil {
-			onSend(sp)
-		}
-
-		_, err = pp.Conn.WriteTo(b, dst)
-		if err != nil {
-			if neterr, ok := err.(*net.OpError); ok {
-				if neterr.Err == syscall.ENOBUFS {
-					continue
-				}
-			}
-			if onSendError != nil {
-				onSendError(sp, err)
-			} else {
-				return err
-			}
-		}
-		break
-	}
-	return nil
 }

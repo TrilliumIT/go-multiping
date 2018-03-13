@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"testing"
+	"time"
 )
 
 func TestNewV4(t *testing.T) {
@@ -112,28 +113,72 @@ func delCB(t *testing.T, p *Pinger, ip string, id int) {
 	}
 }
 
-func TestCallBackListenersV4(t *testing.T) {
+func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	initGoRoutines := runtime.NumGoroutine()
-	r1, r2 := 0
-	cb1 := func(*packet.Packet) { r1++ }
-	cb2 := func(*packet.Packet) { r2++ }
-	p := New(4)
-	addCb(t, p, "127.0.0.1", 123, cb1, initGoRoutines)
+	r1, r2 := 0, 0
+	cb1 := func(p *packet.Packet) { r1 = p.Seq }
+	cb2 := func(p *packet.Packet) { r2 = p.Seq }
+	p := New(proto)
+	addCb(t, p, ip, id1, cb1, initGoRoutines)
 	singleListenerGoRoutines := runtime.NumGoroutine()
-	addCb(t, p, "127.0.0.2", 123, cb2, initGoRoutines)
+	sendTo(t, p, ip, id1, 1)
+	sendTo(t, p, ip, id2, 1)
+	time.Sleep(500 * time.Millisecond)
+	if r1 != 1 || r2 != 0 {
+		t.Error("wrong recieved packet count")
+	}
+	addCb(t, p, ip, id2, cb2, initGoRoutines)
 	if runtime.NumGoroutine() != singleListenerGoRoutines {
 		fmt.Println(runtime.NumGoroutine() - singleListenerGoRoutines)
 		t.Error("listeners changing")
 	}
-	delCB(t, p, "127.0.0.1", 123)
+	sendTo(t, p, ip, id1, 2)
+	sendTo(t, p, ip, id2, 2)
+	time.Sleep(500 * time.Millisecond)
+	if r1 != 2 || r2 != 2 {
+		t.Error("wrong recieved packet count")
+	}
+	delCB(t, p, ip, id1)
 	if runtime.NumGoroutine() != singleListenerGoRoutines {
 		fmt.Println(runtime.NumGoroutine() - singleListenerGoRoutines)
 		t.Error("listeners changing")
 	}
-	delCB(t, p, "127.0.0.2", 123)
+	sendTo(t, p, ip, id1, 3)
+	sendTo(t, p, ip, id2, 3)
+	time.Sleep(500 * time.Millisecond)
+	if r1 != 2 || r2 != 3 {
+		t.Error("wrong recieved packet count")
+	}
+	delCB(t, p, ip, id2)
 	if runtime.NumGoroutine() > initGoRoutines {
 		fmt.Println(runtime.NumGoroutine() - initGoRoutines)
 		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		t.Error("goroutines leaking")
+	}
+	if r1 != 2 || r2 != 3 {
+		t.Error("wrong recieved packet count")
+	}
+}
+
+func TestCallBacksv4(t *testing.T) {
+	testCallBacks(t, 4, "127.0.0.1", 1, 2)
+}
+
+func TestCallBacksv6(t *testing.T) {
+	testCallBacks(t, 6, "::1", 1, 2)
+}
+
+func sendTo(t *testing.T, pp *Pinger, ip string, id, seq int) {
+	e, m := NewEcho()
+	e.ID = id
+	e.Seq = seq
+	m.Type = pp.SendType()
+	dst, err := net.ResolveIPAddr("ip", ip)
+	if err != nil {
+		t.Error("unexpected error from resolve")
+	}
+	err = pp.Send(dst, m, nil, nil)
+	if err != nil {
+		t.Errorf("unexpected error from send: %v", err)
 	}
 }
