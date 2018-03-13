@@ -30,6 +30,7 @@ type Pinger struct {
 func New(v int) *Pinger {
 	p := &Pinger{
 		callbacks: make(map[[18]byte]func(*packet.Packet)),
+		closeWait: func() error { return nil },
 	}
 
 	var typ icmp.Type
@@ -134,6 +135,7 @@ func (pp *Pinger) DelCallBack(ip net.IP, id int) error {
 	if len(pp.callbacks) == 0 {
 		close(pp.stop)
 		err = pp.closeWait()
+		pp.closeWait = func() error { return nil }
 	}
 	return err
 }
