@@ -7,11 +7,17 @@ import (
 )
 
 const (
-	TimeSliceLength  = 8
-	ProtocolICMP     = 1  // Internet Control Message
+	// TimeSliceLength is the length of the icmp payload holding the timestamp
+	TimeSliceLength = 8
+)
+
+// see https://godoc.org/golang.org/x/net/internal/iana#pkg-constants
+const (
+	ProtocolICMP     = 1
 	ProtocolIPv6ICMP = 58 // ICMP for IPv6
 )
 
+// SentPacket is an ICMP echo that has been sent, or attempted to be sent
 type SentPacket struct {
 	Dst  net.IP
 	ID   int
@@ -19,6 +25,7 @@ type SentPacket struct {
 	Sent time.Time
 }
 
+// Packet is an ICMP packet that has been received
 type Packet struct {
 	SentPacket
 	Src      net.IP
@@ -28,6 +35,7 @@ type Packet struct {
 	RTT      time.Duration
 }
 
+// ToSentPacket turns a packet into a SentPacket
 func (p *Packet) ToSentPacket() *SentPacket {
 	if p == nil {
 		return nil
@@ -40,12 +48,15 @@ func (p *Packet) ToSentPacket() *SentPacket {
 	}
 }
 
+// TimeToBytes converts a time.Time into a []byte for inclusion in the ICMP payload
 func TimeToBytes(t time.Time) []byte {
 	b := make([]byte, TimeSliceLength)
 	binary.LittleEndian.PutUint64(b, uint64(t.UnixNano()))
 	return b
 }
 
+// BytesToTime converst a []byte into a time.Time
+// TODO check length of b and return err to avoid panic
 func BytesToTime(b []byte) time.Time {
 	return time.Unix(0, int64(binary.LittleEndian.Uint64(b[:TimeSliceLength])))
 }
