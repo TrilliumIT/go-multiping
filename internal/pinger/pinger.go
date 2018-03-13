@@ -79,8 +79,8 @@ func (pp *Pinger) Network() string {
 }
 
 // GetCallback returns the OnRecieve callback for for a given IP and icmp id
-func (pp *Pinger) GetCallback(ip net.IP, id uint16) (func(*packet.Packet), bool) {
-	k := dstKey(ip, id)
+func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*packet.Packet), bool) {
+	k := dstKey(ip, uint16(id))
 	pp.cbLock.RLock()
 	defer pp.cbLock.RUnlock()
 	v, ok := pp.callbacks[k]
@@ -97,14 +97,14 @@ func (e *ErrorAlreadyExists) Error() string {
 
 // AddCallBack adds an OnRecieve callback for a given IP and icmp id
 // This implicitly starts the listening for these packets
-func (pp *Pinger) AddCallBack(ip net.IP, id uint16, cb func(*packet.Packet)) error {
+func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error {
 	if ip == nil {
 		return fmt.Errorf("invalid ip")
 	}
 	if cb == nil {
 		return fmt.Errorf("invalid callback")
 	}
-	k := dstKey(ip, id)
+	k := dstKey(ip, uint16(id))
 	pp.cbLock.Lock()
 	defer pp.cbLock.Unlock()
 	if _, ok := pp.callbacks[k]; ok {
@@ -124,8 +124,8 @@ func (pp *Pinger) AddCallBack(ip net.IP, id uint16, cb func(*packet.Packet)) err
 
 // DelCallBack deletes a callback for a given IP and icmp id
 // This stops listening for these packets
-func (pp *Pinger) DelCallBack(ip net.IP, id uint16) error {
-	k := dstKey(ip, id)
+func (pp *Pinger) DelCallBack(ip net.IP, id int) error {
+	k := dstKey(ip, uint16(id))
 	pp.cbLock.Lock()
 	defer pp.cbLock.Unlock()
 	delete(pp.callbacks, k)
