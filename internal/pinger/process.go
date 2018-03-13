@@ -1,7 +1,6 @@
 package pinger
 
 import (
-	"net"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -14,7 +13,6 @@ import (
 type recvMsg struct {
 	v4cm       *ipv4.ControlMessage
 	v6cm       *ipv6.ControlMessage
-	src        net.Addr
 	recieved   time.Time
 	payload    []byte
 	payloadLen int

@@ -9,39 +9,48 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
-func (p *Pinger) listen() (func(), error) {
+func (p *Pinger) listen() (func() error, error) {
 	var err error
 	var wg sync.WaitGroup
+	retF := func() error { return nil }
 
 	p.Conn, err = icmp.ListenPacket(p.network, p.src)
 	if err != nil {
-		return wg.Done, err
+		return retF, err
 	}
+
 	if p.Conn.IPv4PacketConn() != nil {
 		err = p.Conn.IPv4PacketConn().SetControlMessage(ipv4.FlagDst|ipv4.FlagSrc|ipv4.FlagTTL, true)
 		if err != nil {
-			return wg.Done, err
+			return retF, err
 		}
 	}
 
 	if p.Conn.IPv6PacketConn() != nil {
 		err = p.Conn.IPv6PacketConn().SetControlMessage(ipv6.FlagDst|ipv6.FlagSrc|ipv6.FlagHopLimit, true)
 		if err != nil {
-			return wg.Done, err
+			return retF, err
 		}
 	}
 
 	var swg sync.WaitGroup
 
 	// close conn on stop
+	ech := make(chan error)
 	wg.Add(1)
 	swg.Add(1)
 	go func() {
 		defer wg.Done()
 		swg.Done()
 		<-p.stop
-		p.Conn.Close()
+		ech <- p.Conn.Close()
 	}()
+
+	retF = func() error {
+		err := <-ech
+		wg.Wait()
+		return err
+	}
 
 	// ipv4 listener
 	wg.Add(1)
@@ -54,42 +63,16 @@ func (p *Pinger) listen() (func(), error) {
 			case <-p.stop:
 				return
 			default:
-				if p.Conn.IPv4PacketConn() == nil {
-					return
-				}
 				r := &recvMsg{
-					payload: make([]byte, p.expectedLen, p.expectedLen),
+					payload: make([]byte, p.expectedLen),
 				}
 				var err error
-				r.payloadLen, r.v4cm, _, err = p.Conn.IPv4PacketConn().ReadFrom(r.payload)
-				if err != nil {
-					continue
+				if p.Conn.IPv6PacketConn() != nil {
+					r.payloadLen, r.v6cm, _, err = p.Conn.IPv6PacketConn().ReadFrom(r.payload)
 				}
-				r.recieved = time.Now()
-				go p.processMessage(r)
-			}
-		}
-	}()
-
-	// ipv6 listener
-	wg.Add(1)
-	swg.Add(1)
-	go func() {
-		defer wg.Done()
-		swg.Done()
-		for {
-			select {
-			case <-p.stop:
-				return
-			default:
-				if p.Conn.IPv6PacketConn() == nil {
-					return
+				if p.Conn.IPv4PacketConn() != nil {
+					r.payloadLen, r.v4cm, _, err = p.Conn.IPv4PacketConn().ReadFrom(r.payload)
 				}
-				r := &recvMsg{
-					payload: make([]byte, p.expectedLen, p.expectedLen),
-				}
-				var err error
-				r.payloadLen, r.v6cm, _, err = p.Conn.IPv6PacketConn().ReadFrom(r.payload)
 				if err != nil {
 					continue
 				}
@@ -100,5 +83,5 @@ func (p *Pinger) listen() (func(), error) {
 	}()
 
 	swg.Wait()
-	return wg.Wait, nil
+	return retF, nil
 }
