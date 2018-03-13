@@ -26,7 +26,7 @@ func (p *Pinger) listen() (func() error, error) {
 	case p.Conn.IPv6PacketConn() != nil:
 		err = p.Conn.IPv6PacketConn().SetControlMessage(ipv6.FlagDst|ipv6.FlagSrc|ipv6.FlagHopLimit, true)
 	default:
-		err = fmt.Errorf("no valid packet connections")
+		err = fmt.Errorf("no valid connections")
 	}
 	if err != nil {
 		return retF, err
@@ -71,8 +71,6 @@ func (p *Pinger) listen() (func() error, error) {
 					r.payloadLen, r.v4cm, _, err = p.Conn.IPv4PacketConn().ReadFrom(r.payload)
 				case p.Conn.IPv6PacketConn() != nil:
 					r.payloadLen, r.v6cm, _, err = p.Conn.IPv6PacketConn().ReadFrom(r.payload)
-				default:
-					panic("no valid connections")
 				}
 				if err != nil {
 					continue

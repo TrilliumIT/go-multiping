@@ -127,6 +127,10 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	if r1 != 1 || r2 != 0 {
 		t.Error("wrong recieved packet count")
 	}
+	_, ok := p.AddCallBack(net.ParseIP(ip), id1, cb1).(*ErrorAlreadyExists)
+	if !ok {
+		t.Error("expected error on dupliate callback")
+	}
 	addCb(t, p, ip, id2, cb2, initGoRoutines)
 	if runtime.NumGoroutine() != singleListenerGoRoutines {
 		fmt.Println(runtime.NumGoroutine() - singleListenerGoRoutines)
@@ -180,5 +184,17 @@ func sendTo(t *testing.T, pp *Pinger, ip string, id, seq int) {
 	err = pp.Send(dst, m, nil, nil)
 	if err != nil {
 		t.Errorf("unexpected error from send: %v", err)
+	}
+}
+
+func TestListenFailure(t *testing.T) {
+	p := New(4)
+	p.src = "::1"
+	f, err := p.listen()
+	if err == nil {
+		t.Errorf("expected error for listen with invalid src/network combination")
+	}
+	if f() != nil {
+		t.Errorf("expected nil error from f")
 	}
 }
