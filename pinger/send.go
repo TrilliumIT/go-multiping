@@ -39,13 +39,17 @@ func (d *Dst) Run() error {
 		ft.Stop()
 
 		ti := time.NewTicker(d.interval)
+		defer close(t)
 		defer ti.Stop()
 		for {
 			select {
 			case <-ti.C:
-				t <- struct{}{}
+				select {
+				case t <- struct{}{}:
+				case <-d.stop:
+					return
+				}
 			case <-d.stop:
-				close(t)
 				return
 			}
 		}
