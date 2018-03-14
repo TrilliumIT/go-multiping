@@ -4,6 +4,8 @@ package pinger
 
 import (
 	"fmt"
+	"net"
+
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
@@ -31,4 +33,8 @@ func readPacket(c *icmp.PacketConn, r *recvMsg) error {
 		r.payloadLen, r.v6cm, _, err = c.IPv6PacketConn().ReadFrom(r.payload)
 	}
 	return err
+}
+
+func cbIP(ip net.IP) net.IP {
+	return ip
 }

@@ -100,6 +100,7 @@ func (e *ErrorAlreadyExists) Error() string {
 // AddCallBack adds an OnRecieve callback for a given IP and icmp id
 // This implicitly starts the listening for these packets
 func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error {
+	ip = cbIP(ip)
 	if ip == nil {
 		return fmt.Errorf("invalid ip")
 	}
