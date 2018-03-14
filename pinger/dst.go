@@ -19,13 +19,12 @@ type Dst struct {
 
 	// randDelay controls whether the first ping will be dalayed by a random amount of time between 0 and interval
 	randDelay bool
+	reResolve bool
 	// callbacks
-	onReply        func(*packet.Packet)
-	onSend         func(*packet.Packet)
-	onSendError    func(*packet.Packet, error)
-	onTimeout      func(*packet.Packet)
-	onResolveError func(*packet.Packet, error)
-	//onOutOfOrder func(*packet.Packet)
+	onReply     func(*packet.Packet)
+	onSend      func(*packet.Packet)
+	onSendError func(*packet.Packet, error)
+	onTimeout   func(*packet.Packet)
 
 	pinger  *Pinger
 	stop    chan struct{}
@@ -57,7 +56,7 @@ func (d *Dst) SetOnReply(f func(*packet.Packet)) {
 	d.onReply = f
 }
 
-// SetOnSend sets f to be called every time a packet is about to be sent
+// SetOnSend sets f to be called every time a packet is sent
 func (d *Dst) SetOnSend(f func(*packet.Packet)) {
 	d.cbWg.Wait()
 	d.onSend = f
@@ -65,6 +64,7 @@ func (d *Dst) SetOnSend(f func(*packet.Packet)) {
 
 // SetOnSendError sets f to be called every time an error is encountered sending. For example a no-route to host error.
 // If this is not set, Run() will stop and return error when sending encounters an error
+// DNS errors can be identified as type *net.DNSError
 func (d *Dst) SetOnSendError(f func(*packet.Packet, error)) {
 	d.cbWg.Wait()
 	d.onSendError = f
@@ -76,12 +76,10 @@ func (d *Dst) SetOnTimeout(f func(*packet.Packet)) {
 	d.onTimeout = f
 }
 
-// SetOnResolveError sets a callback to be called when a resolution
-// error occurs. If this is not set, the host is only resolved once at the beginning of Run(). If an error occurs at this time, it is returned to Run().
-// If this is set, the host is re-resolved before sending each ping.
-func (d *Dst) SetOnResolveError(f func(*packet.Packet, error)) {
+// EnableReResolve enables re-resolving the host before each ping. If this is not set, the host is only resolved once at the beginning of Run(). If an error occurs at this time, it is returned to Run().
+func (d *Dst) EnableReResolve() {
 	d.cbWg.Wait()
-	d.onResolveError = f
+	d.reResolve = true
 }
 
 // EnableRandDelay enables randomly delaying the first packet up to interval.

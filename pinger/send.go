@@ -81,13 +81,16 @@ func (d *Dst) Run() error {
 			Seq:  int(uint16(count)),
 			Sent: time.Now(),
 		}
-		if dst == nil || d.onResolveError != nil {
+		if dst == nil || d.reResolve {
 			nDst, nPP, changed, err := d.resolve(dst, pp)
-			if err != nil && d.onResolveError == nil {
+			if err != nil && !d.reResolve {
 				return err
 			}
 			if err != nil {
-				d.onResolveError(sp, err)
+				err = d.afterSendError(sp, err)
+				if err != nil {
+					return err
+				}
 				continue
 			}
 			if changed {
