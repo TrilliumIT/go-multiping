@@ -27,7 +27,10 @@ type Packet struct {
 	// Src is the source IP. This is probably 0.0.0.0 for sent packets, but a
 	// specific IP on the sending host for recieved packets
 	Src net.IP
-	// Dst is the destination IP
+	// Dst is the destination IP.
+	// This will be nil for recieved packets on windows. The reason is that
+	// the recieve function does not provide the source address
+	// on windows ICMP messages are mathed only by the 16 bit ICMP id.
 	Dst net.IP
 	// ID is the ICMP ID
 	ID int
