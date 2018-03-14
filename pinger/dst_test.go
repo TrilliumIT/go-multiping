@@ -82,3 +82,35 @@ func TestOnReply(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	checkGoRoutines(t, igr)
 }
+
+func TestOnTimeout(t *testing.T) {
+	var testTimeoutIPs = []string{"192.0.2.0", "198.51.100.0", "203.0.113.0", "fe80::2", "fe80::3", "fe80::4"}
+	igr := runtime.NumGoroutine()
+	ti := 0
+	addTi := sync.Mutex{}
+	wg := sync.WaitGroup{}
+	for _, ip := range testTimeoutIPs {
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			d := NewDst(ip, time.Second, time.Second, 2)
+			i := 0
+			d.SetOnTimeout(func(p *packet.SentPacket) {
+				addTi.Lock()
+				defer addTi.Unlock()
+				i++
+				ti++
+			})
+			checkErr(t, d.Run())
+			if i != 2 {
+				t.Errorf("only %v of %v packets timed out", i, 2)
+			}
+		}(ip)
+	}
+	wg.Wait()
+	if ti != 2*len(testIPs) {
+		t.Error("all packets were not recieved")
+	}
+	time.Sleep(time.Millisecond)
+	checkGoRoutines(t, igr)
+}

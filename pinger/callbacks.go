@@ -59,7 +59,7 @@ func wrapCallbacks(
 				processPkt(pending, p, t, timeout, onTimeout)
 				continue
 			case n := <-t.C:
-				processTimeout(pending, t, timeout, onTimeout, n)
+				processTimeout(pending, t, timeout, onTimeout, n, &wg)
 			case <-stop:
 				return
 			}
@@ -159,12 +159,16 @@ func stopTimer(t *time.Timer) {
 	}
 }
 
-func processTimeout(pending map[uint16]*packet.SentPacket, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket), n time.Time) {
+func processTimeout(pending map[uint16]*packet.SentPacket, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket), n time.Time, wg *sync.WaitGroup) {
 	var resetS time.Time
 	for s, p := range pending {
 		if p.Sent.Add(timeout).Before(n) {
 			if onTimeout != nil {
-				go onTimeout(p)
+				wg.Add(1)
+				go func(p *packet.SentPacket) {
+					defer wg.Done()
+					onTimeout(p)
+				}(p)
 			}
 			delete(pending, s)
 			continue
