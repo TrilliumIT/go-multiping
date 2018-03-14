@@ -141,7 +141,7 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	time.Sleep(500 * time.Millisecond)
 	l.Lock()
 	if r1 != 1 || r2 != 0 {
-		t.Error("wrong recieved packet count")
+		t.Errorf("wrong recieved packet count: %v and %v", r1, r2)
 	}
 	l.Unlock()
 	_, ok := p.AddCallBack(net.ParseIP(ip), id1, cb1).(*ErrorAlreadyExists)
@@ -158,7 +158,7 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	time.Sleep(500 * time.Millisecond)
 	l.Lock()
 	if r1 != 2 || r2 != 2 {
-		t.Error("wrong recieved packet count")
+		t.Errorf("wrong recieved packet count: %v and %v", r1, r2)
 	}
 	l.Unlock()
 	delCB(t, p, ip, id1)
@@ -171,10 +171,11 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	time.Sleep(500 * time.Millisecond)
 	l.Lock()
 	if r1 != 2 || r2 != 3 {
-		t.Error("wrong recieved packet count")
+		t.Errorf("wrong recieved packet count: %v and %v", r1, r2)
 	}
 	l.Unlock()
 	delCB(t, p, ip, id2)
+	time.Sleep(time.Millisecond)
 	if runtime.NumGoroutine() > initGoRoutines {
 		fmt.Println(runtime.NumGoroutine() - initGoRoutines)
 		_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
@@ -182,7 +183,7 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	}
 	l.Lock()
 	if r1 != 2 || r2 != 3 {
-		t.Error("wrong recieved packet count")
+		t.Errorf("wrong recieved packet count: %v and %v", r1, r2)
 	}
 	l.Unlock()
 }

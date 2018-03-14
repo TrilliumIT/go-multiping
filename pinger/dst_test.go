@@ -62,7 +62,7 @@ func testCallbacks(
 			setup(d, f)
 			checkErr(t, d.Run())
 			if i != count*countMultiplier {
-				t.Errorf("only %v of %v packets counted", i, count)
+				t.Errorf("only %v of %v packets counted for %v", i, count, ip)
 			}
 		}(ip)
 	}
