@@ -34,17 +34,20 @@ func New(v int) *Pinger {
 	}
 
 	var typ icmp.Type
+	var addLen int
 	switch {
 	case v == 4:
 		p.network = "ip4:icmp"
 		p.src = "0.0.0.0"
 		p.sendType = ipv4.ICMPTypeEcho
 		typ = ipv4.ICMPTypeEcho
+		addLen = v4AddLen
 	case v == 6:
 		p.network = "ip6:ipv6-icmp"
 		p.src = "::"
 		p.sendType = ipv6.ICMPTypeEchoRequest
 		typ = ipv6.ICMPTypeEchoReply
+		addLen = v6AddLen
 	default:
 		panic("invalid pinger type")
 	}
@@ -55,7 +58,7 @@ func New(v int) *Pinger {
 			Data: make([]byte, packet.TimeSliceLength),
 		},
 	}).Marshal(nil); err == nil {
-		p.expectedLen = len(m)
+		p.expectedLen = len(m) + addLen
 	} else {
 		return nil
 	}

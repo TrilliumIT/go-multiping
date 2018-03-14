@@ -11,6 +11,11 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
+const (
+	v4AddLen = 0
+	v6AddLen = 0
+)
+
 func setPacketCon(c *icmp.PacketConn) error {
 	var err error
 	switch {

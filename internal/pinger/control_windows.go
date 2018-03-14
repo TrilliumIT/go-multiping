@@ -11,6 +11,11 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
+const (
+	v4AddLen = ipv4.HeaderLen
+	v6AddLen = ipv6.HeaderLen
+)
+
 func setPacketCon(c *icmp.PacketConn) error {
 	var err error
 	switch {
@@ -40,6 +45,9 @@ func readPacket(c *icmp.PacketConn, r *recvMsg) error {
 }
 
 func cbIP(ip net.IP) net.IP {
+	if ip == nil {
+		return ip
+	}
 	if ip.To4() != nil {
 		return net.IPv4zero
 	}

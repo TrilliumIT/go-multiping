@@ -41,7 +41,6 @@ func (p *Pinger) listen() (func() error, error) {
 		return err
 	}
 
-	// ipv4 listener
 	wg.Add(1)
 	swg.Add(1)
 	go func() {
