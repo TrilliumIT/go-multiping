@@ -1,3 +1,5 @@
+// see https://github.com/golang/net/blob/master/ipv4/control_windows.go#L14
+
 package pinger
 
 import (
