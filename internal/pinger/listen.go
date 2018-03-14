@@ -1,13 +1,10 @@
 package pinger
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
 	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv4"
-	"golang.org/x/net/ipv6"
 )
 
 func (p *Pinger) listen() (func() error, error) {
@@ -20,14 +17,7 @@ func (p *Pinger) listen() (func() error, error) {
 		return retF, err
 	}
 
-	switch {
-	case p.Conn.IPv4PacketConn() != nil:
-		err = p.Conn.IPv4PacketConn().SetControlMessage(ipv4.FlagDst|ipv4.FlagSrc|ipv4.FlagTTL, true)
-	case p.Conn.IPv6PacketConn() != nil:
-		err = p.Conn.IPv6PacketConn().SetControlMessage(ipv6.FlagDst|ipv6.FlagSrc|ipv6.FlagHopLimit, true)
-	default:
-		err = fmt.Errorf("no valid connections")
-	}
+	err = setPacketCon(p.Conn)
 	if err != nil {
 		return retF, err
 	}
