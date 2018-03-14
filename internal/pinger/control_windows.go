@@ -5,7 +5,6 @@ package pinger
 import (
 	"fmt"
 	"net"
-	"syscall"
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
@@ -32,7 +31,7 @@ func readPacket(c *icmp.PacketConn, r *recvMsg) error {
 		}
 		r.payloadLen, _, _, err = c.IPv4PacketConn().ReadFrom(r.payload)
 	case c.IPv6PacketConn() != nil:
-		r.v4cm = &ipv6.ControlMessage{
+		r.v6cm = &ipv6.ControlMessage{
 			Src: net.IPv6zero,
 		}
 		r.payloadLen, r.v6cm, _, err = c.IPv6PacketConn().ReadFrom(r.payload)
@@ -43,7 +42,6 @@ func readPacket(c *icmp.PacketConn, r *recvMsg) error {
 func cbIP(ip net.IP) net.IP {
 	if ip.To4() != nil {
 		return net.IPv4zero
-		return
 	}
 	return net.IPv6zero
 }

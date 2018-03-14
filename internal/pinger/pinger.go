@@ -82,6 +82,7 @@ func (pp *Pinger) Network() string {
 
 // GetCallback returns the OnRecieve callback for for a given IP and icmp id
 func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*packet.Packet), bool) {
+	ip = cbIP(ip)
 	k := dstKey(ip, uint16(id))
 	pp.cbLock.RLock()
 	defer pp.cbLock.RUnlock()
@@ -128,6 +129,7 @@ func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error 
 // DelCallBack deletes a callback for a given IP and icmp id
 // This stops listening for these packets
 func (pp *Pinger) DelCallBack(ip net.IP, id int) error {
+	ip = cbIP(ip)
 	k := dstKey(ip, uint16(id))
 	pp.cbLock.Lock()
 	defer pp.cbLock.Unlock()
