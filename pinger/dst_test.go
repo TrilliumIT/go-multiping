@@ -111,3 +111,11 @@ func TestOnSendError(t *testing.T) {
 	}
 	testCallbacks(t, ips, 4, setup)
 }
+
+func TestOnResolveError(t *testing.T) {
+	var ips = []string{"foo.test", "bar.test", "baz.test"}
+	setup := func(d *Dst, f func()) {
+		d.SetOnResolveError(func(*packet.SentPacket, error) { f() })
+	}
+	testCallbacks(t, ips, 4, setup)
+}
