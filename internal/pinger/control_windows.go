@@ -16,13 +16,13 @@ func setPacketCon(c *icmp.PacketConn) error {
 
 func listenPacket(c *icmp.PacketConn, r *recvMsg) error {
 	var err error
-	var src net.IPAddr
+	var src net.Addr
 	r.payloadLen, src, err = c.ReadFrom(r.payload)
 	switch {
 	case c.IPv4PacketConn() != nil:
-		r.v4cm = &ipv4.ControlMessage{Src: src.IP}
+		r.v4cm = &ipv4.ControlMessage{Src: src.(*net.IPAddr).IP}
 	case c.IPv6PacketConn() != nil:
-		r.v6cm = &ipv6.ControlMessage{Src: src.IP}
+		r.v6cm = &ipv6.ControlMessage{Src: src.(*net.IPAddr).IP}
 	}
 	return err
 }
