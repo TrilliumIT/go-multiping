@@ -68,7 +68,11 @@ func wrapCallbacks(
 
 	rOnSend := func(p *packet.SentPacket) {
 		if onSend != nil {
-			go onSend(p)
+			wg.Add(1)
+			go func() {
+				onSend(p)
+				wg.Done()
+			}()
 		}
 		pktCh <- &pkt{sent: p}
 	}
@@ -78,7 +82,11 @@ func wrapCallbacks(
 	if onSendError != nil {
 		rOnSendError = func(p *packet.SentPacket, err error) {
 			if onSendError != nil {
-				go onSendError(p, err)
+				wg.Add(1)
+				go func() {
+					onSendError(p, err)
+					wg.Done()
+				}()
 			}
 			pktCh <- &pkt{err: p}
 		}
@@ -87,11 +95,19 @@ func wrapCallbacks(
 	rOnReply := func(p *packet.Packet) {
 		if p.Sent.Add(timeout).Before(p.Recieved) {
 			if onTimeout != nil {
-				go onTimeout(p.ToSentPacket())
+				wg.Add(1)
+				go func() {
+					onTimeout(p.ToSentPacket())
+					wg.Done()
+				}()
 			}
 		} else {
 			if onReply != nil {
-				go onReply(p)
+				wg.Add(1)
+				go func() {
+					onReply(p)
+					wg.Done()
+				}()
 			}
 		}
 		pktCh <- &pkt{recv: p}

@@ -18,11 +18,11 @@ var globalPinger *Pinger
 var globalPingerLock sync.Mutex
 
 func getGlobalPinger() *Pinger {
+	globalPingerLock.Lock()
+	defer globalPingerLock.Unlock()
 	if globalPinger != nil {
 		return globalPinger
 	}
-	globalPingerLock.Lock()
-	defer globalPingerLock.Unlock()
 	if globalPinger == nil {
 		globalPinger = NewPinger()
 	}

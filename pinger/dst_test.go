@@ -2,16 +2,17 @@ package pinger
 
 import (
 	//	"fmt"
+	"github.com/clinta/go-multiping/packet"
 	"os"
 	"runtime"
 	"runtime/pprof"
 	"sync"
 	"testing"
 	"time"
-	//"github.com/clinta/go-multiping/packet"
 )
 
-/*
+var testIPs = []string{"127.0.0.1", "127.0.0.2", "127.0.0.3", "::1", "::1", "::1"}
+
 func TestMain(m *testing.M) {
 	go func() {
 		time.Sleep(10 * time.Second)
@@ -20,7 +21,6 @@ func TestMain(m *testing.M) {
 	}()
 	os.Exit(m.Run())
 }
-*/
 
 func checkGoRoutines(t *testing.T, igr int) {
 	pr := pprof.Lookup("goroutine")
@@ -37,55 +37,48 @@ func checkErr(t *testing.T, err error) {
 	}
 }
 
-func testNoCallbacks(t *testing.T, ips ...string) {
+func testNoCallbacks(t *testing.T) {
 	igr := runtime.NumGoroutine()
 	wg := sync.WaitGroup{}
-	for _, ip := range ips {
-		d := NewDst(ip, time.Second, time.Second, 2)
+	for _, ip := range testIPs {
 		wg.Add(1)
-		go func() {
+		go func(ip string) {
 			defer wg.Done()
+			d := NewDst(ip, time.Second, time.Second, 2)
 			checkErr(t, d.Run())
-		}()
+		}(ip)
 	}
 	wg.Wait()
 	checkGoRoutines(t, igr)
 }
 
-func testOnReply(t *testing.T, ips ...string) {
+func TestOnReply(t *testing.T) {
 	igr := runtime.NumGoroutine()
 	ti := 0
-	for _, ip := range ips {
-		d := NewDst(ip, time.Second, time.Second, 2)
-		err := d.Run()
-		if err == nil {
-			t.Errorf("unexpected success")
-		}
-		checkGoRoutines(t, igr)
-		/*
+	addTi := sync.Mutex{}
+	wg := sync.WaitGroup{}
+	for _, ip := range testIPs {
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			d := NewDst(ip, time.Second, time.Second, 2)
 			i := 0
-			d.SetOnReply(func(p *packet.Packet) { i++; ti++; fmt.Println("got packet") })
+			d.SetOnReply(func(p *packet.Packet) {
+				addTi.Lock()
+				defer addTi.Unlock()
+				i++
+				ti++
+			})
 			checkErr(t, d.Run())
 			if i != 2 {
-				t.Error("all packets were not recieved")
+				t.Errorf("only %v of %v packets recieved", i, 2)
 			}
-		*/
+		}(ip)
 	}
-	if ti != 2*len(ips) {
+	wg.Wait()
+	if ti != 2*len(testIPs) {
 		t.Error("all packets were not recieved")
 	}
 	time.Sleep(time.Millisecond)
 	checkGoRoutines(t, igr)
-}
-
-func TestNoCallbacksV4(t *testing.T) {
-	testNoCallbacks(t, "127.0.0.1", "127.0.0.2", "127.0.0.3")
-}
-
-func testOnReplyv4(t *testing.T) {
-	testOnReply(t, "127.0.0.1", "127.0.0.2", "127.0.0.3")
-}
-
-func testOnReplyv6(t *testing.T) {
-	testOnReply(t, "::1", "::1", "::1")
 }
