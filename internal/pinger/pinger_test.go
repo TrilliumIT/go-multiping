@@ -2,9 +2,6 @@ package pinger
 
 import (
 	"fmt"
-	"github.com/clinta/go-multiping/packet"
-	"golang.org/x/net/ipv4"
-	"golang.org/x/net/ipv6"
 	"net"
 	"os"
 	"runtime"
@@ -12,8 +9,13 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/clinta/go-multiping/packet"
+	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 )
 
+// nolint:dupl
 func TestNewV4(t *testing.T) {
 	p := New(4)
 	if p.callbacks == nil {
@@ -34,6 +36,7 @@ func TestNewV4(t *testing.T) {
 	}
 }
 
+// nolint:dupl
 func TestNewV6(t *testing.T) {
 	p := New(6)
 	if p.callbacks == nil {
@@ -174,7 +177,7 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	delCB(t, p, ip, id2)
 	if runtime.NumGoroutine() > initGoRoutines {
 		fmt.Println(runtime.NumGoroutine() - initGoRoutines)
-		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		t.Error("goroutines leaking")
 	}
 	l.Lock()

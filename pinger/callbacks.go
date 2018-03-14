@@ -106,8 +106,6 @@ func (d *Dst) runSend() {
 			}
 		}
 	}()
-
-	return
 }
 
 type pkt struct {

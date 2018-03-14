@@ -8,6 +8,9 @@ import (
 	"github.com/clinta/go-multiping/packet"
 )
 
+// Send sends a packet. This also sets the sent time on the packet
+// nolint: interfacer
+// I want only an IPAddr not net.Addr others will throw erros
 func (pp *Pinger) Send(dst *net.IPAddr, sp *packet.Packet) error {
 	var err error
 	for {

@@ -54,6 +54,7 @@ func (p *Packet) sendType() icmp.Type {
 	return ipv6.ICMPTypeEchoRequest
 }
 
+// ToICMPMsg returns a byte array ready to send on the wire
 func (p *Packet) ToICMPMsg() ([]byte, error) {
 	return (&icmp.Message{
 		Code: 0,

@@ -1,7 +1,6 @@
 package pinger
 
 import (
-	"github.com/clinta/go-multiping/packet"
 	"net"
 	"os"
 	"runtime"
@@ -9,12 +8,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/clinta/go-multiping/packet"
 )
 
 func TestMain(m *testing.M) {
 	go func() {
 		time.Sleep(60 * time.Second)
-		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		panic("die")
 	}()
 	os.Exit(m.Run())
@@ -24,7 +25,7 @@ func checkGoRoutines(t *testing.T, igr int) {
 	pr := pprof.Lookup("goroutine")
 	gr := runtime.NumGoroutine()
 	if gr > igr {
-		pr.WriteTo(os.Stdout, 1)
+		_ = pr.WriteTo(os.Stdout, 1)
 		t.Errorf("leaking goroutines: %v", gr-igr)
 	}
 }
@@ -133,6 +134,7 @@ func MultiValid(t *testing.T) {
 	testCallbacks(t, ips, 4, setup, 2)
 }
 
+// nolint:dupl
 func MultiResolveError(t *testing.T) {
 	var ips = []string{"foo.test", "bar.test", "baz.test"}
 	setup := func(d *Dst, f func(j int)) {
@@ -155,6 +157,7 @@ func MultiResolveError(t *testing.T) {
 	testCallbacks(t, ips, 4, setup, 1)
 }
 
+// nolint:dupl
 func MultiSendError(t *testing.T) {
 	var ips = []string{"0.0.0.1", "::2", "0.0.0.5", "::5"}
 	setup := func(d *Dst, f func(j int)) {
