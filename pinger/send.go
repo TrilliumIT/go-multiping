@@ -19,7 +19,6 @@ func init() {
 func (d *Dst) Run() error {
 	d.sending = make(chan struct{})
 	wg := sync.WaitGroup{}
-	e, m := protoPinger.NewEcho()
 
 	onReply, onSend, onSendError := wrapCallbacks(
 		d.onReply, d.beforeSend, d.onSendError, d.onTimeout,
@@ -70,11 +69,16 @@ func (d *Dst) Run() error {
 	var delCallback = func() error { return nil }
 	defer func() { _ = delCallback() }()
 	count := -1
+	id := rand.Intn(1<<16 - 1)
 	for range t {
 		count++
-		e.Seq = int(uint16(count))
 		if d.count > 0 && count >= d.count {
 			break
+		}
+		sp := &packet.Packet{
+			ID:   id,
+			Seq:  int(uint16(count)),
+			Sent: time.Now(),
 		}
 		if dst == nil || d.onResolveError != nil {
 			nDst, nPP, changed, err := d.resolve(dst, pp)
@@ -82,19 +86,15 @@ func (d *Dst) Run() error {
 				return err
 			}
 			if err != nil {
-				d.onResolveError(&packet.Packet{
-					ID:   e.ID,
-					Seq:  e.Seq,
-					Sent: time.Now(),
-				}, err)
+				d.onResolveError(sp, err)
 				continue
 			}
 			if changed {
-				err := nPP.AddCallBack(nDst.IP, e.ID, onReply)
+				err := nPP.AddCallBack(nDst.IP, id, onReply)
 				if err != nil {
 					if _, ok := err.(*protoPinger.ErrorAlreadyExists); ok {
 						// Try a different ID
-						e.ID = rand.Intn(1<<16 - 1)
+						id = rand.Intn(1<<16 - 1)
 						continue
 					}
 					return err
@@ -104,13 +104,13 @@ func (d *Dst) Run() error {
 					return err
 				}
 				delCallback = func() error {
-					return pp.DelCallBack(dst.IP, e.ID)
+					return pp.DelCallBack(dst.IP, id)
 				}
-				m.Type = nPP.SendType()
 				dst, pp = nDst, nPP
 			}
 		}
-		sp, err := pp.Send(dst, m)
+		sp.Dst = dst.IP
+		err := pp.Send(dst, sp)
 		if err != nil {
 			if onSendError != nil {
 				onSendError(sp, err)
