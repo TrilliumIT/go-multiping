@@ -25,28 +25,28 @@ func NewEcho() (*icmp.Echo, *icmp.Message) {
 	}
 }
 
-func (pp *Pinger) Send(dst *net.IPAddr, m *icmp.Message, onSend func(*packet.SentPacket), onSendError func(*packet.SentPacket, error)) error {
-	e, ok := m.Body.(*icmp.Echo)
-	if !ok {
-		return fmt.Errorf("invalid icmp message")
+func (pp *Pinger) Send(dst *net.IPAddr, m *icmp.Message) (*packet.SentPacket, error) {
+	sp := &packet.SentPacket{
+		Dst:  dst.IP,
+		Sent: time.Now(),
 	}
 
-	for {
-		t := time.Now()
-		e.Data = packet.TimeToBytes(t)
-		b, err := m.Marshal(nil)
-		if err != nil {
-			return err
-		}
+	e, ok := m.Body.(*icmp.Echo)
+	if !ok {
+		return sp, fmt.Errorf("invalid icmp message")
+	}
 
-		sp := &packet.SentPacket{
-			Dst:  dst.IP,
-			ID:   e.ID,
-			Seq:  e.Seq,
-			Sent: t,
-		}
-		if onSend != nil {
-			onSend(sp)
+	sp.ID = e.ID
+	sp.Seq = e.Seq
+
+	var err error
+	for {
+		sp.Sent = time.Now()
+		e.Data = packet.TimeToBytes(sp.Sent)
+		var b []byte
+		b, err = m.Marshal(nil)
+		if err != nil {
+			break
 		}
 
 		_, err = pp.Conn.WriteTo(b, dst)
@@ -56,13 +56,8 @@ func (pp *Pinger) Send(dst *net.IPAddr, m *icmp.Message, onSend func(*packet.Sen
 					continue
 				}
 			}
-			if onSendError != nil {
-				onSendError(sp, err)
-			} else {
-				return err
-			}
 		}
 		break
 	}
-	return nil
+	return sp, err
 }

@@ -1,8 +1,10 @@
 package pinger
 
 import (
+	"fmt"
 	"math/rand"
 	"net"
+	"sync"
 	"time"
 
 	protoPinger "github.com/clinta/go-multiping/internal/pinger"
@@ -17,14 +19,17 @@ func init() {
 // After calling Stop(), Run will continue to block for timeout to allow the last packet to be returned.
 func (d *Dst) Run() error {
 	d.sending = make(chan struct{})
+	wg := sync.WaitGroup{}
 	e, m := protoPinger.NewEcho()
 
-	onReply, onSend, onSendError, wait := wrapCallbacks(
+	onReply, onSend, onSendError := wrapCallbacks(
 		d.onReply, d.onSend, d.onSendError, d.onTimeout,
-		d.stop, d.sending, d.timeout, d.interval)
+		d.stop, d.sending, &wg, d.timeout, d.interval)
 
 	t := make(chan struct{})
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		var rd time.Duration
 		if d.randDelay {
 			rd = time.Duration(rand.Int63n(d.interval.Nanoseconds()))
@@ -50,8 +55,12 @@ func (d *Dst) Run() error {
 					continue
 				case <-d.stop:
 					return
+				case <-d.sending:
+					return
 				}
 			case <-d.stop:
+				return
+			case <-d.sending:
 				return
 			}
 		}
@@ -61,8 +70,13 @@ func (d *Dst) Run() error {
 	var pp *protoPinger.Pinger
 	var delCallback = func() error { return nil }
 	defer func() { _ = delCallback() }()
-	count := 0
+	count := -1
 	for range t {
+		count++
+		e.Seq = int(uint16(count))
+		if d.count > 0 && count >= d.count {
+			break
+		}
 		if dst == nil || d.onResolveError != nil {
 			nDst, nPP, changed, err := d.resolve(dst, pp)
 			if err != nil && d.onResolveError == nil {
@@ -74,6 +88,7 @@ func (d *Dst) Run() error {
 					Seq:  e.Seq,
 					Sent: time.Now(),
 				}, err)
+				fmt.Printf("id: %v count: %v\n", e.ID, count)
 				continue
 			}
 			if changed {
@@ -97,19 +112,21 @@ func (d *Dst) Run() error {
 				dst, pp = nDst, nPP
 			}
 		}
-		err := pp.Send(dst, m, onSend, onSendError)
+		sp, err := pp.Send(dst, m)
 		if err != nil {
+			if onSendError != nil {
+				onSendError(sp, err)
+				continue
+			}
 			return err
 		}
-		e.Seq = int(uint16(e.Seq) + 1)
-		count++
-		if d.count > 0 && count >= d.count {
-			close(d.sending)
-			break
+		if onSend != nil {
+			onSend(sp)
 		}
 	}
 
-	wait()
+	close(d.sending)
+	wg.Wait()
 	select {
 	case <-d.stop:
 	default:

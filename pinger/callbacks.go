@@ -14,15 +14,14 @@ func wrapCallbacks(
 	onTimeout func(*packet.SentPacket),
 	stop <-chan struct{},
 	sending <-chan struct{},
+	wg *sync.WaitGroup,
 	timeout time.Duration,
 	interval time.Duration,
 ) (
 	func(*packet.Packet), // onReply
 	func(*packet.SentPacket), // onSend
 	func(*packet.SentPacket, error), // onSendError
-	func(), // wait func
 ) {
-	wg := sync.WaitGroup{}
 	buf := 2 * (timeout.Nanoseconds() / interval.Nanoseconds())
 	if buf < 2 {
 		buf = 2
@@ -36,10 +35,17 @@ func wrapCallbacks(
 			<-t.C
 		}
 		pending := make(map[uint16]*packet.SentPacket)
+		sendingTrigger := make(chan struct{}, 1)
+		wg.Add(1)
+		go func() {
+			<-sending
+			sendingTrigger <- struct{}{}
+			wg.Done()
+		}()
 		for {
 			select {
 			case p := <-pktCh:
-				processPkt(pending, p, t, timeout, onTimeout)
+				processPkt(pending, p, t, timeout)
 				continue
 			case <-stop:
 				return
@@ -56,10 +62,12 @@ func wrapCallbacks(
 
 			select {
 			case p := <-pktCh:
-				processPkt(pending, p, t, timeout, onTimeout)
+				processPkt(pending, p, t, timeout)
 				continue
 			case n := <-t.C:
-				processTimeout(pending, t, timeout, onTimeout, n, &wg)
+				processTimeout(pending, t, timeout, onTimeout, n, wg)
+			case <-sendingTrigger:
+				continue
 			case <-stop:
 				return
 			}
@@ -114,7 +122,7 @@ func wrapCallbacks(
 	}
 
 	//return onReply, rOnSend, rOnSendError
-	return rOnReply, rOnSend, rOnSendError, wg.Wait
+	return rOnReply, rOnSend, rOnSendError
 }
 
 type pkt struct {
@@ -123,7 +131,7 @@ type pkt struct {
 	err  *packet.SentPacket
 }
 
-func processPkt(pending map[uint16]*packet.SentPacket, p *pkt, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket)) {
+func processPkt(pending map[uint16]*packet.SentPacket, p *pkt, t *time.Timer, timeout time.Duration) {
 	if p.sent != nil {
 		pending[uint16(p.sent.Seq)] = p.sent
 		if len(pending) == 1 {

@@ -1,7 +1,7 @@
 package pinger
 
 import (
-	//	"fmt"
+	"fmt"
 	"github.com/clinta/go-multiping/packet"
 	"os"
 	"runtime"
@@ -13,7 +13,7 @@ import (
 
 func TestMain(m *testing.M) {
 	go func() {
-		time.Sleep(10 * time.Second)
+		time.Sleep(60 * time.Second)
 		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		panic("die")
 	}()
@@ -103,12 +103,13 @@ func TestOnSendError(t *testing.T) {
 	testCallbacks(t, ips, 4, setup, true)
 }
 
-/*
 func TestOnResolveError(t *testing.T) {
 	var ips = []string{"foo.test", "bar.test", "baz.test"}
 	setup := func(d *Dst, f func()) {
-		d.SetOnResolveError(func(*packet.SentPacket, error) { f() })
+		d.SetOnResolveError(func(p *packet.SentPacket, err error) {
+			f()
+			fmt.Printf("onresolve triggered: %v\n", p)
+		})
 	}
-	testCallbacks(t, ips, 4, setup)
+	testCallbacks(t, ips, 4, setup, true)
 }
-*/
