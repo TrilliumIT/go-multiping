@@ -26,8 +26,9 @@ type Dst struct {
 	onResolveError func(*packet.SentPacket, error)
 	//onOutOfOrder func(*packet.Packet)
 
-	pinger *Pinger
-	stop   chan struct{}
+	pinger  *Pinger
+	stop    chan struct{}
+	sending chan struct{}
 }
 
 // NewDst creates a Dst

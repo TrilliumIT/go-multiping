@@ -1,6 +1,7 @@
 package pinger
 
 import (
+	"sync"
 	"time"
 
 	"github.com/clinta/go-multiping/packet"
@@ -12,23 +13,24 @@ func wrapCallbacks(
 	onSendError func(*packet.SentPacket, error),
 	onTimeout func(*packet.SentPacket),
 	stop <-chan struct{},
+	sending <-chan struct{},
 	timeout time.Duration,
 	interval time.Duration,
 ) (
-	func(*packet.Packet),
-	func(*packet.SentPacket),
-	func(*packet.SentPacket, error),
+	func(*packet.Packet), // onReply
+	func(*packet.SentPacket), // onSend
+	func(*packet.SentPacket, error), // onSendError
+	func(), // wait func
 ) {
-	if onTimeout == nil {
-		return onReply, onSend, onSendError
-	}
-
+	wg := sync.WaitGroup{}
 	buf := 2 * (timeout.Nanoseconds() / interval.Nanoseconds())
 	if buf < 2 {
 		buf = 2
 	}
 	pktCh := make(chan *pkt, buf)
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		t := time.NewTimer(timeout)
 		if !t.Stop() {
 			<-t.C
@@ -41,6 +43,14 @@ func wrapCallbacks(
 				continue
 			case <-stop:
 				return
+			default:
+			}
+
+			select {
+			case <-sending:
+				if len(pending) == 0 {
+					return
+				}
 			default:
 			}
 
@@ -87,7 +97,8 @@ func wrapCallbacks(
 		pktCh <- &pkt{recv: p}
 	}
 
-	return rOnReply, rOnSend, rOnSendError
+	//return onReply, rOnSend, rOnSendError
+	return rOnReply, rOnSend, rOnSendError, wg.Wait
 }
 
 type pkt struct {

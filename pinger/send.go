@@ -16,11 +16,12 @@ func init() {
 // Run runs the ping. It blocks until an error is returned or the ping is stopped.
 // After calling Stop(), Run will continue to block for timeout to allow the last packet to be returned.
 func (d *Dst) Run() error {
+	d.sending = make(chan struct{})
 	e, m := protoPinger.NewEcho()
 
-	onReply, onSend, onSendError := wrapCallbacks(
+	onReply, onSend, onSendError, wait := wrapCallbacks(
 		d.onReply, d.onSend, d.onSendError, d.onTimeout,
-		d.stop, d.timeout, d.interval)
+		d.stop, d.sending, d.timeout, d.interval)
 
 	t := make(chan struct{})
 	go func() {
@@ -46,6 +47,7 @@ func (d *Dst) Run() error {
 			case <-ti.C:
 				select {
 				case t <- struct{}{}:
+					continue
 				case <-d.stop:
 					return
 				}
@@ -102,11 +104,12 @@ func (d *Dst) Run() error {
 		e.Seq = int(uint16(e.Seq) + 1)
 		count++
 		if d.count > 0 && count >= d.count {
-			time.Sleep(d.timeout)
+			close(d.sending)
 			break
 		}
 	}
 
+	wait()
 	select {
 	case <-d.stop:
 	default:
