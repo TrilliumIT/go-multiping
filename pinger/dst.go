@@ -20,10 +20,10 @@ type Dst struct {
 	randDelay bool
 	// callbacks
 	onReply        func(*packet.Packet)
-	beforeSend     func(*packet.SentPacket)
-	onSendError    func(*packet.SentPacket, error)
-	onTimeout      func(*packet.SentPacket)
-	onResolveError func(*packet.SentPacket, error)
+	beforeSend     func(*packet.Packet)
+	onSendError    func(*packet.Packet, error)
+	onTimeout      func(*packet.Packet)
+	onResolveError func(*packet.Packet, error)
 	//onOutOfOrder func(*packet.Packet)
 
 	pinger  *Pinger
@@ -54,25 +54,25 @@ func (d *Dst) SetOnReply(f func(*packet.Packet)) {
 }
 
 // SetBeforeSend sets f to be called every time a packet is about to be sent
-func (d *Dst) SetBeforeSend(f func(*packet.SentPacket)) {
+func (d *Dst) SetBeforeSend(f func(*packet.Packet)) {
 	d.beforeSend = f
 }
 
 // SetOnSendError sets f to be called every time an error is encountered sending. For example a no-route to host error.
 // If this is not set, Run() will stop and return error when sending encounters an error
-func (d *Dst) SetOnSendError(f func(*packet.SentPacket, error)) {
+func (d *Dst) SetOnSendError(f func(*packet.Packet, error)) {
 	d.onSendError = f
 }
 
 // SetOnTimeout sets f to be called every time an ICMP reply is not recieved within timeout
-func (d *Dst) SetOnTimeout(f func(*packet.SentPacket)) {
+func (d *Dst) SetOnTimeout(f func(*packet.Packet)) {
 	d.onTimeout = f
 }
 
 // SetOnResolveError sets a callback to be called when a resolution
 // error occurs. If this is not set, the host is only resolved once at the beginning of Run(). If an error occurs at this time, it is returned to Run().
 // If this is set, the host is re-resolved before sending each ping.
-func (d *Dst) SetOnResolveError(f func(*packet.SentPacket, error)) {
+func (d *Dst) SetOnResolveError(f func(*packet.Packet, error)) {
 	d.onResolveError = f
 }
 

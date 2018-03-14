@@ -1,7 +1,6 @@
 package pinger
 
 import (
-	"fmt"
 	"math/rand"
 	"net"
 	"sync"
@@ -83,12 +82,11 @@ func (d *Dst) Run() error {
 				return err
 			}
 			if err != nil {
-				d.onResolveError(&packet.SentPacket{
+				d.onResolveError(&packet.Packet{
 					ID:   e.ID,
 					Seq:  e.Seq,
 					Sent: time.Now(),
 				}, err)
-				fmt.Printf("id: %v count: %v\n", e.ID, count)
 				continue
 			}
 			if changed {

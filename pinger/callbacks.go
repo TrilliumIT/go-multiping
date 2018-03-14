@@ -9,9 +9,9 @@ import (
 
 func wrapCallbacks(
 	onReply func(*packet.Packet),
-	onSend func(*packet.SentPacket),
-	onSendError func(*packet.SentPacket, error),
-	onTimeout func(*packet.SentPacket),
+	onSend func(*packet.Packet),
+	onSendError func(*packet.Packet, error),
+	onTimeout func(*packet.Packet),
 	stop <-chan struct{},
 	sending <-chan struct{},
 	wg *sync.WaitGroup,
@@ -19,8 +19,8 @@ func wrapCallbacks(
 	interval time.Duration,
 ) (
 	func(*packet.Packet), // onReply
-	func(*packet.SentPacket), // onSend
-	func(*packet.SentPacket, error), // onSendError
+	func(*packet.Packet), // onSend
+	func(*packet.Packet, error), // onSendError
 ) {
 	buf := 2 * (timeout.Nanoseconds() / interval.Nanoseconds())
 	if buf < 2 {
@@ -34,7 +34,7 @@ func wrapCallbacks(
 		if !t.Stop() {
 			<-t.C
 		}
-		pending := make(map[uint16]*packet.SentPacket)
+		pending := make(map[uint16]*packet.Packet)
 		sendingTrigger := make(chan struct{}, 1)
 		wg.Add(1)
 		go func() {
@@ -74,7 +74,7 @@ func wrapCallbacks(
 		}
 	}()
 
-	rOnSend := func(p *packet.SentPacket) {
+	rOnSend := func(p *packet.Packet) {
 		if onSend != nil {
 			wg.Add(1)
 			go func() {
@@ -85,10 +85,10 @@ func wrapCallbacks(
 		pktCh <- &pkt{sent: p}
 	}
 
-	var rOnSendError func(*packet.SentPacket, error)
+	var rOnSendError func(*packet.Packet, error)
 
 	if onSendError != nil {
-		rOnSendError = func(p *packet.SentPacket, err error) {
+		rOnSendError = func(p *packet.Packet, err error) {
 			if onSendError != nil {
 				wg.Add(1)
 				go func() {
@@ -105,7 +105,7 @@ func wrapCallbacks(
 			if onTimeout != nil {
 				wg.Add(1)
 				go func() {
-					onTimeout(p.ToSentPacket())
+					onTimeout(p)
 					wg.Done()
 				}()
 			}
@@ -126,12 +126,12 @@ func wrapCallbacks(
 }
 
 type pkt struct {
-	sent *packet.SentPacket
+	sent *packet.Packet
 	recv *packet.Packet
-	err  *packet.SentPacket
+	err  *packet.Packet
 }
 
-func processPkt(pending map[uint16]*packet.SentPacket, p *pkt, t *time.Timer, timeout time.Duration) {
+func processPkt(pending map[uint16]*packet.Packet, p *pkt, t *time.Timer, timeout time.Duration) {
 	if p.sent != nil {
 		pending[uint16(p.sent.Seq)] = p.sent
 		if len(pending) == 1 {
@@ -167,13 +167,13 @@ func stopTimer(t *time.Timer) {
 	}
 }
 
-func processTimeout(pending map[uint16]*packet.SentPacket, t *time.Timer, timeout time.Duration, onTimeout func(*packet.SentPacket), n time.Time, wg *sync.WaitGroup) {
+func processTimeout(pending map[uint16]*packet.Packet, t *time.Timer, timeout time.Duration, onTimeout func(*packet.Packet), n time.Time, wg *sync.WaitGroup) {
 	var resetS time.Time
 	for s, p := range pending {
 		if p.Sent.Add(timeout).Before(n) {
 			if onTimeout != nil {
 				wg.Add(1)
-				go func(p *packet.SentPacket) {
+				go func(p *packet.Packet) {
 					defer wg.Done()
 					onTimeout(p)
 				}(p)

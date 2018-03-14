@@ -89,7 +89,7 @@ func TestOnReply(t *testing.T) {
 func TestOnTimeout(t *testing.T) {
 	var ips = []string{"192.0.2.0", "198.51.100.0", "203.0.113.0", "fe80::2", "fe80::3", "fe80::4"}
 	setup := func(d *Dst, f func()) {
-		d.SetOnTimeout(func(*packet.SentPacket) { f() })
+		d.SetOnTimeout(func(*packet.Packet) { f() })
 	}
 	testCallbacks(t, ips, 4, setup, 1)
 }
@@ -97,7 +97,7 @@ func TestOnTimeout(t *testing.T) {
 func TestOnSendError(t *testing.T) {
 	var ips = []string{"0.0.0.1", "::2", "0.0.0.5", "::5"}
 	setup := func(d *Dst, f func()) {
-		d.SetOnSendError(func(*packet.SentPacket, error) { f() })
+		d.SetOnSendError(func(*packet.Packet, error) { f() })
 	}
 	testCallbacks(t, ips, 4, setup, 1)
 }
@@ -105,7 +105,7 @@ func TestOnSendError(t *testing.T) {
 func TestOnResolveError(t *testing.T) {
 	var ips = []string{"foo.test", "bar.test", "baz.test"}
 	setup := func(d *Dst, f func()) {
-		d.SetOnResolveError(func(p *packet.SentPacket, err error) {
+		d.SetOnResolveError(func(p *packet.Packet, err error) {
 			f()
 		})
 	}
@@ -118,13 +118,13 @@ func MultiValid(t *testing.T) {
 		d.SetOnReply(func(p *packet.Packet) {
 			f()
 		})
-		d.SetBeforeSend(func(*packet.SentPacket) {
+		d.SetBeforeSend(func(*packet.Packet) {
 			f()
 		})
-		d.SetOnSendError(func(*packet.SentPacket, error) {
+		d.SetOnSendError(func(*packet.Packet, error) {
 			f()
 		})
-		d.SetOnResolveError(func(*packet.SentPacket, error) {
+		d.SetOnResolveError(func(*packet.Packet, error) {
 			f()
 		})
 		d.EnableRandDelay()
@@ -138,13 +138,13 @@ func MultiResolveError(t *testing.T) {
 		d.SetOnReply(func(p *packet.Packet) {
 			f()
 		})
-		d.SetBeforeSend(func(*packet.SentPacket) {
+		d.SetBeforeSend(func(*packet.Packet) {
 			f()
 		})
-		d.SetOnSendError(func(*packet.SentPacket, error) {
+		d.SetOnSendError(func(*packet.Packet, error) {
 			f()
 		})
-		d.SetOnResolveError(func(*packet.SentPacket, error) {
+		d.SetOnResolveError(func(*packet.Packet, error) {
 			f()
 		})
 		d.EnableRandDelay()
@@ -158,13 +158,13 @@ func MultiSendError(t *testing.T) {
 		d.SetOnReply(func(p *packet.Packet) {
 			f()
 		})
-		d.SetBeforeSend(func(*packet.SentPacket) {
+		d.SetBeforeSend(func(*packet.Packet) {
 			f()
 		})
-		d.SetOnSendError(func(*packet.SentPacket, error) {
+		d.SetOnSendError(func(*packet.Packet, error) {
 			f()
 		})
-		d.SetOnResolveError(func(*packet.SentPacket, error) {
+		d.SetOnResolveError(func(*packet.Packet, error) {
 			f()
 		})
 		d.EnableRandDelay()

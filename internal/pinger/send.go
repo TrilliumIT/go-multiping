@@ -25,8 +25,8 @@ func NewEcho() (*icmp.Echo, *icmp.Message) {
 	}
 }
 
-func (pp *Pinger) Send(dst *net.IPAddr, m *icmp.Message) (*packet.SentPacket, error) {
-	sp := &packet.SentPacket{
+func (pp *Pinger) Send(dst *net.IPAddr, m *icmp.Message) (*packet.Packet, error) {
+	sp := &packet.Packet{
 		Dst:  dst.IP,
 		Sent: time.Now(),
 	}

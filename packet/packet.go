@@ -18,35 +18,27 @@ const (
 	ProtocolIPv6ICMP = 58 // ICMP for IPv6
 )
 
-// SentPacket is an ICMP echo that has been sent, or attempted to be sent
-type SentPacket struct {
-	Dst  net.IP
-	ID   int
-	Seq  int
-	Sent time.Time
-}
-
 // Packet is an ICMP packet that has been received
 type Packet struct {
-	SentPacket
-	Src      net.IP
-	TTL      int
-	Len      int
+	// Src is the source IP. This is probably 0.0.0.0 for sent packets, but a
+	// specific IP on the sending host for recieved packets
+	Src net.IP
+	// Dst is the destination IP
+	Dst net.IP
+	// ID is the ICMP ID
+	ID int
+	// Seq is the ICMP Sequence
+	Seq int
+	// Sent is the time the echo was sent
+	Sent time.Time
+	// Recieved is the time the echo was recieved.
 	Recieved time.Time
-	RTT      time.Duration
-}
-
-// ToSentPacket turns a packet into a SentPacket
-func (p *Packet) ToSentPacket() *SentPacket {
-	if p == nil {
-		return nil
-	}
-	return &SentPacket{
-		Dst:  p.Src,
-		ID:   p.ID,
-		Seq:  p.Seq,
-		Sent: p.Sent,
-	}
+	// TTL is the ttl on the recieved packet.
+	TTL int
+	// Len is the length of the recieved packet
+	Len int
+	// RTT is the round trip time of the packet
+	RTT time.Duration
 }
 
 // TimeToBytes converts a time.Time into a []byte for inclusion in the ICMP payload
