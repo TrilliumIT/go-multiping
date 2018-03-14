@@ -65,6 +65,9 @@ func (d *Dst) SetOnSend(f func(*packet.Packet)) {
 // SetOnSendError sets f to be called every time an error is encountered sending. For example a no-route to host error.
 // If this is not set, Run() will stop and return error when sending encounters an error
 // DNS errors can be identified as type *net.DNSError
+// Windows does not properly report send errors for non-routable ips
+// The built in ping command in windows will return "transmit failed", but
+// no error is returned to go when doing the same thing.
 func (d *Dst) SetOnSendError(f func(*packet.Packet, error)) {
 	d.cbWg.Wait()
 	d.onSendError = f
