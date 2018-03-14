@@ -39,7 +39,7 @@ func readPacket(c *icmp.PacketConn, r *recvMsg) error {
 		r.v6cm = &ipv6.ControlMessage{
 			Src: net.IPv6zero,
 		}
-		r.payloadLen, r.v6cm, _, err = c.IPv6PacketConn().ReadFrom(r.payload)
+		r.payloadLen, _, _, err = c.IPv6PacketConn().ReadFrom(r.payload)
 	}
 	return err
 }
