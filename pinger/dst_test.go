@@ -96,14 +96,6 @@ func TestOnTimeout(t *testing.T) {
 	testCallbacks(t, ips, 4, setup, 1)
 }
 
-func TestOnSendError(t *testing.T) {
-	var ips = []string{"0.0.0.1", "::2", "0.0.0.5", "::5"}
-	setup := func(d *Dst, f func(j int)) {
-		d.SetOnSendError(func(*packet.Packet, error) { f(1) })
-	}
-	testCallbacks(t, ips, 4, setup, 1)
-}
-
 func TestOnResolveError(t *testing.T) {
 	var ips = []string{"foo.test", "bar.test", "baz.test"}
 	setup := func(d *Dst, f func(j int)) {
