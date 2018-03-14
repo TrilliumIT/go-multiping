@@ -30,7 +30,7 @@ func TestNewV4(t *testing.T) {
 	if p.SendType() != ipv4.ICMPTypeEcho {
 		t.Error("wrong send type")
 	}
-	if p.expectedLen != 16 {
+	if p.expectedLen != 16+v4AddLen {
 		fmt.Println(p.expectedLen)
 		t.Error("wrong expected length")
 	}
@@ -51,7 +51,7 @@ func TestNewV6(t *testing.T) {
 	if p.SendType() != ipv6.ICMPTypeEchoRequest {
 		t.Error("wrong send type")
 	}
-	if p.expectedLen != 16 {
+	if p.expectedLen != 16+v6AddLen {
 		fmt.Println(p.expectedLen)
 		t.Error("wrong expected length")
 	}
