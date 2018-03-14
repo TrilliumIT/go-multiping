@@ -37,6 +37,8 @@ type Packet struct {
 	Sent time.Time
 	// Recieved is the time the echo was recieved.
 	Recieved time.Time
+	// TimedOut is the time the echo timed out
+	TimedOut time.Time
 	// TTL is the ttl on the recieved packet.
 	TTL int
 	// Len is the length of the recieved packet
