@@ -40,6 +40,7 @@ type Packet struct {
 	// TimedOut is the time the echo timed out
 	TimedOut time.Time
 	// TTL is the ttl on the recieved packet.
+	// This is not supported on windows and will always be zero
 	TTL int
 	// Len is the length of the recieved packet
 	Len int
