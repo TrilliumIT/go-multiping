@@ -5,7 +5,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/clinta/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/packet"
 )
 
 // Send sends a packet. This also sets the sent time on the packet

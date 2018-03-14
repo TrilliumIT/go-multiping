@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clinta/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/packet"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 )

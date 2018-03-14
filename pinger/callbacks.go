@@ -3,7 +3,7 @@ package pinger
 import (
 	"time"
 
-	"github.com/clinta/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/packet"
 )
 
 func (d *Dst) afterReply(p *packet.Packet) {

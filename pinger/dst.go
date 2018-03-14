@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/clinta/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/packet"
 )
 
 // Dst is a destination host to be pinged

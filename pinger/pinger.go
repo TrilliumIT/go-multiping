@@ -4,7 +4,7 @@ import (
 	"net"
 	"sync"
 
-	protoPinger "github.com/clinta/go-multiping/internal/pinger"
+	protoPinger "github.com/TrilliumIT/go-multiping/internal/pinger"
 )
 
 // Pinger holds a single listener for incoming ICMPs. (one for ipv4 one for ipv6 if necessary). It only holds the listener open while a ping is running.

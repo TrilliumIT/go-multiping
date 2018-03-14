@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/clinta/go-multiping/packet"
-	"github.com/clinta/go-multiping/pinger"
+	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/pinger"
 )
 
 var usage = `

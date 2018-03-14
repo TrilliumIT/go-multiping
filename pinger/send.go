@@ -5,8 +5,8 @@ import (
 	"net"
 	"time"
 
-	protoPinger "github.com/clinta/go-multiping/internal/pinger"
-	"github.com/clinta/go-multiping/packet"
+	protoPinger "github.com/TrilliumIT/go-multiping/internal/pinger"
+	"github.com/TrilliumIT/go-multiping/packet"
 )
 
 func init() {

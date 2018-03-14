@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clinta/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/packet"
 )
 
 func TestMain(m *testing.M) {
