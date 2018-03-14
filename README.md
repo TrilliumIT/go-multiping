@@ -7,6 +7,10 @@ if you are pinging both IPv4 and IPv6 hosts).
 The socket will only be listening as long as you have an active ping running.
 Pingers are thread safe and you can add and remove destinations as needed.
 
+Note that this library only performs ICMP based pings, which means it must be
+run as root or have the appropriate capabilities set. To run tests, or use `go
+run` try `go test -exec sudo` or `go run -exec sudo`.
+
 See the [godoc](https://godoc.org/github.com/TrilliumIT/go-multiping/pinger) for
 more details.
 
