@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"sync"
 	"testing"
 	"time"
 )
@@ -115,18 +116,31 @@ func delCB(t *testing.T, p *Pinger, ip string, id int) {
 
 func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	initGoRoutines := runtime.NumGoroutine()
+	l := sync.Mutex{}
+	l.Lock()
 	r1, r2 := 0, 0
-	cb1 := func(p *packet.Packet) { r1 = p.Seq }
-	cb2 := func(p *packet.Packet) { r2 = p.Seq }
+	l.Unlock()
+	cb1 := func(p *packet.Packet) {
+		l.Lock()
+		defer l.Unlock()
+		r1 = p.Seq
+	}
+	cb2 := func(p *packet.Packet) {
+		l.Lock()
+		defer l.Unlock()
+		r2 = p.Seq
+	}
 	p := New(proto)
 	addCb(t, p, ip, id1, cb1, initGoRoutines)
 	singleListenerGoRoutines := runtime.NumGoroutine()
 	sendTo(t, p, ip, id1, 1)
 	sendTo(t, p, ip, id2, 1)
 	time.Sleep(500 * time.Millisecond)
+	l.Lock()
 	if r1 != 1 || r2 != 0 {
 		t.Error("wrong recieved packet count")
 	}
+	l.Unlock()
 	_, ok := p.AddCallBack(net.ParseIP(ip), id1, cb1).(*ErrorAlreadyExists)
 	if !ok {
 		t.Error("expected error on dupliate callback")
@@ -139,9 +153,11 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	sendTo(t, p, ip, id1, 2)
 	sendTo(t, p, ip, id2, 2)
 	time.Sleep(500 * time.Millisecond)
+	l.Lock()
 	if r1 != 2 || r2 != 2 {
 		t.Error("wrong recieved packet count")
 	}
+	l.Unlock()
 	delCB(t, p, ip, id1)
 	if runtime.NumGoroutine() != singleListenerGoRoutines {
 		fmt.Println(runtime.NumGoroutine() - singleListenerGoRoutines)
@@ -150,18 +166,22 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	sendTo(t, p, ip, id1, 3)
 	sendTo(t, p, ip, id2, 3)
 	time.Sleep(500 * time.Millisecond)
+	l.Lock()
 	if r1 != 2 || r2 != 3 {
 		t.Error("wrong recieved packet count")
 	}
+	l.Unlock()
 	delCB(t, p, ip, id2)
 	if runtime.NumGoroutine() > initGoRoutines {
 		fmt.Println(runtime.NumGoroutine() - initGoRoutines)
 		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		t.Error("goroutines leaking")
 	}
+	l.Lock()
 	if r1 != 2 || r2 != 3 {
 		t.Error("wrong recieved packet count")
 	}
+	l.Unlock()
 }
 
 func TestCallBacksv4(t *testing.T) {
@@ -173,15 +193,12 @@ func TestCallBacksv6(t *testing.T) {
 }
 
 func sendTo(t *testing.T, pp *Pinger, ip string, id, seq int) {
-	e, m := NewEcho()
-	e.ID = id
-	e.Seq = seq
-	m.Type = pp.SendType()
 	dst, err := net.ResolveIPAddr("ip", ip)
+	p := &packet.Packet{Dst: dst.IP, ID: id, Seq: seq}
 	if err != nil {
 		t.Error("unexpected error from resolve")
 	}
-	err = pp.Send(dst, m, nil, nil)
+	err = pp.Send(dst, p)
 	if err != nil {
 		t.Errorf("unexpected error from send: %v", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	//"runtime/pprof"
+	"net"
 	"sync"
 	"time"
 
@@ -60,7 +61,7 @@ func main() {
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
 
-	onTimeout := func(pkt *packet.SentPacket) {
+	onTimeout := func(pkt *packet.Packet) {
 		clock.Lock()
 		defer clock.Unlock()
 		dropped++
@@ -75,14 +76,16 @@ func main() {
 		d.SetOnReply(onReply)
 		d.SetOnTimeout(onTimeout)
 		if *reResolve {
-			d.SetOnResolveError(func(p *packet.SentPacket, err error) {
-				fmt.Printf("Error resolving %v: %v\n", h, err)
-			})
+			d.EnableReResolve()
 		}
 		if *randDelay {
 			d.EnableRandDelay()
 		}
-		d.SetOnSendError(func(pkt *packet.SentPacket, err error) {
+		d.SetOnSendError(func(pkt *packet.Packet, err error) {
+			if _, ok := err.(*net.DNSError); ok {
+				fmt.Printf("Error resolving %v: %v\n", h, err)
+				return
+			}
 			fmt.Printf("Error sending to %v: %v\n", h, err)
 		})
 
