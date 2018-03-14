@@ -20,7 +20,7 @@ type Dst struct {
 	randDelay bool
 	// callbacks
 	onReply        func(*packet.Packet)
-	onSend         func(*packet.SentPacket)
+	beforeSend     func(*packet.SentPacket)
 	onSendError    func(*packet.SentPacket, error)
 	onTimeout      func(*packet.SentPacket)
 	onResolveError func(*packet.SentPacket, error)
@@ -53,9 +53,9 @@ func (d *Dst) SetOnReply(f func(*packet.Packet)) {
 	d.onReply = f
 }
 
-// SetOnSend sets f to be called every time a packet is sent
-func (d *Dst) SetOnSend(f func(*packet.SentPacket)) {
-	d.onSend = f
+// SetBeforeSend sets f to be called every time a packet is about to be sent
+func (d *Dst) SetBeforeSend(f func(*packet.SentPacket)) {
+	d.beforeSend = f
 }
 
 // SetOnSendError sets f to be called every time an error is encountered sending. For example a no-route to host error.

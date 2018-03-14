@@ -23,7 +23,7 @@ func (d *Dst) Run() error {
 	e, m := protoPinger.NewEcho()
 
 	onReply, onSend, onSendError := wrapCallbacks(
-		d.onReply, d.onSend, d.onSendError, d.onTimeout,
+		d.onReply, d.beforeSend, d.onSendError, d.onTimeout,
 		d.stop, d.sending, &wg, d.timeout, d.interval)
 
 	t := make(chan struct{})

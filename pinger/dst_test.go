@@ -1,7 +1,6 @@
 package pinger
 
 import (
-	"fmt"
 	"github.com/clinta/go-multiping/packet"
 	"os"
 	"runtime"
@@ -40,7 +39,7 @@ func testCallbacks(
 	ips []string,
 	count int,
 	setup func(d *Dst, f func()),
-	checkCount bool,
+	countMultiplier int,
 ) {
 	igr := runtime.NumGoroutine()
 	ti := 0
@@ -60,13 +59,13 @@ func testCallbacks(
 			d := NewDst(ip, 100*time.Millisecond, time.Second, count)
 			setup(d, f)
 			checkErr(t, d.Run())
-			if i != count && checkCount {
+			if i != count*countMultiplier {
 				t.Errorf("only %v of %v packets counted", i, count)
 			}
 		}(ip)
 	}
 	wg.Wait()
-	if ti != count*len(ips) && checkCount {
+	if ti != count*len(ips)*countMultiplier {
 		t.Errorf("only %v of %v total packets counted", ti, count*len(ips))
 	}
 	time.Sleep(time.Millisecond)
@@ -76,7 +75,7 @@ func testCallbacks(
 func TestNoCallbacks(t *testing.T) {
 	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3", "::1", "::1", "::1"}
 	setup := func(d *Dst, f func()) {}
-	testCallbacks(t, ips, 4, setup, false)
+	testCallbacks(t, ips, 4, setup, 0)
 }
 
 func TestOnReply(t *testing.T) {
@@ -84,7 +83,7 @@ func TestOnReply(t *testing.T) {
 	setup := func(d *Dst, f func()) {
 		d.SetOnReply(func(*packet.Packet) { f() })
 	}
-	testCallbacks(t, ips, 4, setup, true)
+	testCallbacks(t, ips, 4, setup, 1)
 }
 
 func TestOnTimeout(t *testing.T) {
@@ -92,7 +91,7 @@ func TestOnTimeout(t *testing.T) {
 	setup := func(d *Dst, f func()) {
 		d.SetOnTimeout(func(*packet.SentPacket) { f() })
 	}
-	testCallbacks(t, ips, 4, setup, true)
+	testCallbacks(t, ips, 4, setup, 1)
 }
 
 func TestOnSendError(t *testing.T) {
@@ -100,7 +99,7 @@ func TestOnSendError(t *testing.T) {
 	setup := func(d *Dst, f func()) {
 		d.SetOnSendError(func(*packet.SentPacket, error) { f() })
 	}
-	testCallbacks(t, ips, 4, setup, true)
+	testCallbacks(t, ips, 4, setup, 1)
 }
 
 func TestOnResolveError(t *testing.T) {
@@ -108,8 +107,67 @@ func TestOnResolveError(t *testing.T) {
 	setup := func(d *Dst, f func()) {
 		d.SetOnResolveError(func(p *packet.SentPacket, err error) {
 			f()
-			fmt.Printf("onresolve triggered: %v\n", p)
 		})
 	}
-	testCallbacks(t, ips, 4, setup, true)
+	testCallbacks(t, ips, 4, setup, 1)
+}
+
+func MultiValid(t *testing.T) {
+	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3", "::1", "::1", "::1"}
+	setup := func(d *Dst, f func()) {
+		d.SetOnReply(func(p *packet.Packet) {
+			f()
+		})
+		d.SetBeforeSend(func(*packet.SentPacket) {
+			f()
+		})
+		d.SetOnSendError(func(*packet.SentPacket, error) {
+			f()
+		})
+		d.SetOnResolveError(func(*packet.SentPacket, error) {
+			f()
+		})
+		d.EnableRandDelay()
+	}
+	testCallbacks(t, ips, 4, setup, 2)
+}
+
+func MultiResolveError(t *testing.T) {
+	var ips = []string{"foo.test", "bar.test", "baz.test"}
+	setup := func(d *Dst, f func()) {
+		d.SetOnReply(func(p *packet.Packet) {
+			f()
+		})
+		d.SetBeforeSend(func(*packet.SentPacket) {
+			f()
+		})
+		d.SetOnSendError(func(*packet.SentPacket, error) {
+			f()
+		})
+		d.SetOnResolveError(func(*packet.SentPacket, error) {
+			f()
+		})
+		d.EnableRandDelay()
+	}
+	testCallbacks(t, ips, 4, setup, 1)
+}
+
+func MultiSendError(t *testing.T) {
+	var ips = []string{"0.0.0.1", "::2", "0.0.0.5", "::5"}
+	setup := func(d *Dst, f func()) {
+		d.SetOnReply(func(p *packet.Packet) {
+			f()
+		})
+		d.SetBeforeSend(func(*packet.SentPacket) {
+			f()
+		})
+		d.SetOnSendError(func(*packet.SentPacket, error) {
+			f()
+		})
+		d.SetOnResolveError(func(*packet.SentPacket, error) {
+			f()
+		})
+		d.EnableRandDelay()
+	}
+	testCallbacks(t, ips, 4, setup, 1)
 }
