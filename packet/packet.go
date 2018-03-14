@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"net"
 	"time"
-
-	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv4"
-	"golang.org/x/net/ipv6"
 )
 
 const (
@@ -24,8 +20,8 @@ const (
 
 // Packet is an ICMP packet that has been received
 type Packet struct {
-	// Src is the source IP. This is nil for sent packets
-	// It is the specific IP on the sending host for recieved packets
+	// Src is the source IP. This is probably 0.0.0.0 for sent packets, but a
+	// specific IP on the sending host for recieved packets
 	Src net.IP
 	// Dst is the destination IP
 	Dst net.IP
@@ -43,25 +39,6 @@ type Packet struct {
 	Len int
 	// RTT is the round trip time of the packet
 	RTT time.Duration
-}
-
-func (p *Packet) icmpType() icmp.Type {
-	if p.Dst.To4() == nil {
-		return ipv6.ICMPTypeEchoReply
-	}
-	return ipv4.ICMPTypeEcho
-}
-
-func (p *Packet) ICMPMsgBytes() ([]byte, error) {
-	return (&icmp.Message{
-		Code: 0,
-		Type: p.icmpType(),
-		Body: &icmp.Echo{
-			ID:   p.ID,
-			Seq:  p.Seq,
-			Data: TimeToBytes(p.Sent),
-		},
-	}).Marshal(nil)
 }
 
 // TimeToBytes converts a time.Time into a []byte for inclusion in the ICMP payload

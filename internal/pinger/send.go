@@ -1,6 +1,7 @@
 package pinger
 
 import (
+	"fmt"
 	"math/rand"
 	"net"
 	"syscall"
@@ -24,12 +25,26 @@ func NewEcho() (*icmp.Echo, *icmp.Message) {
 	}
 }
 
-func (pp *Pinger) Send(dst *net.IPAddr, sp *packet.Packet) error {
+func (pp *Pinger) Send(dst *net.IPAddr, m *icmp.Message) (*packet.Packet, error) {
+	sp := &packet.Packet{
+		Dst:  dst.IP,
+		Sent: time.Now(),
+	}
+
+	e, ok := m.Body.(*icmp.Echo)
+	if !ok {
+		return sp, fmt.Errorf("invalid icmp message")
+	}
+
+	sp.ID = e.ID
+	sp.Seq = e.Seq
+
 	var err error
 	for {
 		sp.Sent = time.Now()
+		e.Data = packet.TimeToBytes(sp.Sent)
 		var b []byte
-		b, err = sp.ICMPMsgBytes()
+		b, err = m.Marshal(nil)
 		if err != nil {
 			break
 		}
@@ -44,5 +59,5 @@ func (pp *Pinger) Send(dst *net.IPAddr, sp *packet.Packet) error {
 		}
 		break
 	}
-	return err
+	return sp, err
 }
