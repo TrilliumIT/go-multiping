@@ -75,6 +75,8 @@ func wrapCallbacks(
 	}()
 
 	rOnSend := func(p *packet.Packet) {
+		wg.Add(1)
+		defer wg.Done()
 		if onSend != nil {
 			wg.Add(1)
 			go func() {
@@ -82,12 +84,14 @@ func wrapCallbacks(
 				wg.Done()
 			}()
 		}
-		pktCh <- &pkt{sent: p}
+		pktCh <- &pkt{p, true}
 	}
 
 	var rOnSendError func(*packet.Packet, error)
 
 	if onSendError != nil {
+		wg.Add(1)
+		defer wg.Done()
 		rOnSendError = func(p *packet.Packet, err error) {
 			if onSendError != nil {
 				wg.Add(1)
@@ -96,11 +100,13 @@ func wrapCallbacks(
 					wg.Done()
 				}()
 			}
-			pktCh <- &pkt{err: p}
+			pktCh <- &pkt{p, false}
 		}
 	}
 
 	rOnReply := func(p *packet.Packet) {
+		wg.Add(1)
+		defer wg.Done()
 		if p.Sent.Add(timeout).Before(p.Recieved) {
 			if onTimeout != nil {
 				wg.Add(1)
@@ -118,7 +124,7 @@ func wrapCallbacks(
 				}()
 			}
 		}
-		pktCh <- &pkt{recv: p}
+		pktCh <- &pkt{p, false}
 	}
 
 	//return onReply, rOnSend, rOnSendError
@@ -126,23 +132,19 @@ func wrapCallbacks(
 }
 
 type pkt struct {
-	sent *packet.Packet
-	recv *packet.Packet
-	err  *packet.Packet
+	p *packet.Packet
+	a bool
 }
 
 func processPkt(pending map[uint16]*packet.Packet, p *pkt, t *time.Timer, timeout time.Duration) {
-	if p.sent != nil {
-		pending[uint16(p.sent.Seq)] = p.sent
+	if p.a {
+		pending[uint16(p.p.Seq)] = p.p
 		if len(pending) == 1 {
-			resetTimer(t, p.sent.Sent, timeout)
+			resetTimer(t, time.Now(), timeout)
 		}
-	}
-	if p.recv != nil {
-		delete(pending, uint16(p.recv.Seq))
-	}
-	if p.err != nil {
-		delete(pending, uint16(p.err.Seq))
+		return
+	} else {
+		delete(pending, uint16(p.p.Seq))
 	}
 	if len(pending) == 0 {
 		stopTimer(t)
