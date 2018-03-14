@@ -118,7 +118,7 @@ func MultiValid(t *testing.T) {
 		d.SetOnReply(func(p *packet.Packet) {
 			f()
 		})
-		d.SetBeforeSend(func(*packet.Packet) {
+		d.SetOnSend(func(*packet.Packet) {
 			f()
 		})
 		d.SetOnSendError(func(*packet.Packet, error) {
@@ -138,7 +138,7 @@ func MultiResolveError(t *testing.T) {
 		d.SetOnReply(func(p *packet.Packet) {
 			f()
 		})
-		d.SetBeforeSend(func(*packet.Packet) {
+		d.SetOnSend(func(*packet.Packet) {
 			f()
 		})
 		d.SetOnSendError(func(*packet.Packet, error) {
@@ -158,7 +158,7 @@ func MultiSendError(t *testing.T) {
 		d.SetOnReply(func(p *packet.Packet) {
 			f()
 		})
-		d.SetBeforeSend(func(*packet.Packet) {
+		d.SetOnSend(func(*packet.Packet) {
 			f()
 		})
 		d.SetOnSendError(func(*packet.Packet, error) {

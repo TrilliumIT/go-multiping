@@ -1,59 +1,91 @@
 package pinger
 
 import (
-	"sync"
 	"time"
 
 	"github.com/clinta/go-multiping/packet"
 )
 
-func wrapCallbacks(
-	onReply func(*packet.Packet),
-	onSend func(*packet.Packet),
-	onSendError func(*packet.Packet, error),
-	onTimeout func(*packet.Packet),
-	stop <-chan struct{},
-	sending <-chan struct{},
-	wg *sync.WaitGroup,
-	timeout time.Duration,
-	interval time.Duration,
-) (
-	func(*packet.Packet), // onReply
-	func(*packet.Packet), // onSend
-	func(*packet.Packet, error), // onSendError
-) {
-	buf := 2 * (timeout.Nanoseconds() / interval.Nanoseconds())
-	if buf < 2 {
-		buf = 2
+func (d *Dst) afterReply(p *packet.Packet) {
+	d.pktCh <- &pkt{p, false}
+	if !p.Sent.Add(d.timeout).Before(p.Recieved) {
+		if d.onReply != nil {
+			d.cbWg.Add(1)
+			go func() {
+				d.onReply(p)
+				d.cbWg.Done()
+			}()
+		}
+		return
 	}
-	pktCh := make(chan *pkt, buf)
-	wg.Add(1)
+	d.afterTimeout(p)
+}
+
+func (d *Dst) beforeSend(p *packet.Packet) {
+	d.pktCh <- &pkt{p, true}
+}
+
+func (d *Dst) afterSend(p *packet.Packet) {
+	if d.onSend != nil {
+		d.cbWg.Add(1)
+		go func() {
+			d.onSend(p)
+			d.cbWg.Done()
+		}()
+	}
+}
+
+func (d *Dst) afterSendError(p *packet.Packet, err error) error {
+	d.pktCh <- &pkt{p, false}
+	if d.onSendError != nil {
+		d.cbWg.Add(1)
+		go func() {
+			d.onSendError(p, err)
+			d.cbWg.Done()
+		}()
+		return nil
+	}
+	return err
+}
+
+func (d *Dst) afterTimeout(p *packet.Packet) {
+	if d.onTimeout != nil {
+		d.cbWg.Add(1)
+		go func() {
+			d.onTimeout(p)
+			d.cbWg.Done()
+		}()
+	}
+}
+
+func (d *Dst) runSend() {
+	d.cbWg.Add(1)
 	go func() {
-		defer wg.Done()
-		t := time.NewTimer(timeout)
+		defer d.cbWg.Done()
+		t := time.NewTimer(d.timeout)
 		if !t.Stop() {
 			<-t.C
 		}
 		pending := make(map[uint16]*packet.Packet)
 		sendingTrigger := make(chan struct{}, 1)
-		wg.Add(1)
+		d.cbWg.Add(1)
 		go func() {
-			<-sending
+			<-d.sending
 			sendingTrigger <- struct{}{}
-			wg.Done()
+			d.cbWg.Done()
 		}()
 		for {
 			select {
-			case p := <-pktCh:
-				processPkt(pending, p, t, timeout)
+			case p := <-d.pktCh:
+				d.processPkt(pending, p, t)
 				continue
-			case <-stop:
+			case <-d.stop:
 				return
 			default:
 			}
 
 			select {
-			case <-sending:
+			case <-d.sending:
 				if len(pending) == 0 {
 					return
 				}
@@ -61,68 +93,20 @@ func wrapCallbacks(
 			}
 
 			select {
-			case p := <-pktCh:
-				processPkt(pending, p, t, timeout)
+			case p := <-d.pktCh:
+				d.processPkt(pending, p, t)
 				continue
 			case n := <-t.C:
-				processTimeout(pending, t, timeout, onTimeout, n, wg)
+				d.processTimeout(pending, t, n)
 			case <-sendingTrigger:
 				continue
-			case <-stop:
+			case <-d.stop:
 				return
 			}
 		}
 	}()
 
-	rOnSend := func(p *packet.Packet) {
-		if onSend != nil {
-			wg.Add(1)
-			go func() {
-				onSend(p)
-				wg.Done()
-			}()
-		}
-		pktCh <- &pkt{p, true}
-	}
-
-	var rOnSendError func(*packet.Packet, error)
-
-	if onSendError != nil {
-		rOnSendError = func(p *packet.Packet, err error) {
-			if onSendError != nil {
-				wg.Add(1)
-				go func() {
-					onSendError(p, err)
-					wg.Done()
-				}()
-			}
-			pktCh <- &pkt{p, false}
-		}
-	}
-
-	rOnReply := func(p *packet.Packet) {
-		if p.Sent.Add(timeout).Before(p.Recieved) {
-			if onTimeout != nil {
-				wg.Add(1)
-				go func() {
-					onTimeout(p)
-					wg.Done()
-				}()
-			}
-		} else {
-			if onReply != nil {
-				wg.Add(1)
-				go func() {
-					onReply(p)
-					wg.Done()
-				}()
-			}
-		}
-		pktCh <- &pkt{p, false}
-	}
-
-	//return onReply, rOnSend, rOnSendError
-	return rOnReply, rOnSend, rOnSendError
+	return
 }
 
 type pkt struct {
@@ -130,17 +114,35 @@ type pkt struct {
 	a bool
 }
 
-func processPkt(pending map[uint16]*packet.Packet, p *pkt, t *time.Timer, timeout time.Duration) {
+func (d *Dst) processPkt(pending map[uint16]*packet.Packet, p *pkt, t *time.Timer) {
 	if p.a {
 		pending[uint16(p.p.Seq)] = p.p
 		if len(pending) == 1 {
-			resetTimer(t, p.p.Sent, timeout)
+			resetTimer(t, time.Now(), d.timeout)
 		}
 	} else {
 		delete(pending, uint16(p.p.Seq))
 	}
 	if len(pending) == 0 {
 		stopTimer(t)
+	}
+}
+
+func (d *Dst) processTimeout(pending map[uint16]*packet.Packet, t *time.Timer, n time.Time) {
+	var resetS time.Time
+	for s, p := range pending {
+		if p.Sent.Add(d.timeout).Before(n) {
+			d.afterTimeout(p)
+			delete(pending, s)
+			continue
+		}
+		if resetS.IsZero() || resetS.After(p.Sent) {
+			resetS = p.Sent
+		}
+	}
+
+	if !resetS.IsZero() {
+		resetTimer(t, resetS, d.timeout)
 	}
 }
 
@@ -159,29 +161,5 @@ func stopTimer(t *time.Timer) {
 		case <-t.C:
 		default:
 		}
-	}
-}
-
-func processTimeout(pending map[uint16]*packet.Packet, t *time.Timer, timeout time.Duration, onTimeout func(*packet.Packet), n time.Time, wg *sync.WaitGroup) {
-	var resetS time.Time
-	for s, p := range pending {
-		if p.Sent.Add(timeout).Before(n) {
-			if onTimeout != nil {
-				wg.Add(1)
-				go func(p *packet.Packet) {
-					defer wg.Done()
-					onTimeout(p)
-				}(p)
-			}
-			delete(pending, s)
-			continue
-		}
-		if resetS.IsZero() || resetS.After(p.Sent) {
-			resetS = p.Sent
-		}
-	}
-
-	if !resetS.IsZero() {
-		resetTimer(t, resetS, timeout)
 	}
 }

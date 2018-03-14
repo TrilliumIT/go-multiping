@@ -1,6 +1,7 @@
 package pinger
 
 import (
+	"sync"
 	"time"
 
 	"github.com/clinta/go-multiping/packet"
@@ -20,7 +21,7 @@ type Dst struct {
 	randDelay bool
 	// callbacks
 	onReply        func(*packet.Packet)
-	beforeSend     func(*packet.Packet)
+	onSend         func(*packet.Packet)
 	onSendError    func(*packet.Packet, error)
 	onTimeout      func(*packet.Packet)
 	onResolveError func(*packet.Packet, error)
@@ -29,6 +30,8 @@ type Dst struct {
 	pinger  *Pinger
 	stop    chan struct{}
 	sending chan struct{}
+	cbWg    sync.WaitGroup
+	pktCh   chan *pkt
 }
 
 // NewDst creates a Dst
@@ -50,22 +53,26 @@ func (p *Pinger) NewDst(host string, interval, timeout time.Duration, count int)
 
 // SetOnReply sets f to be called every time an ICMP reply is recieved
 func (d *Dst) SetOnReply(f func(*packet.Packet)) {
+	d.cbWg.Wait()
 	d.onReply = f
 }
 
-// SetBeforeSend sets f to be called every time a packet is about to be sent
-func (d *Dst) SetBeforeSend(f func(*packet.Packet)) {
-	d.beforeSend = f
+// SetOnSend sets f to be called every time a packet is about to be sent
+func (d *Dst) SetOnSend(f func(*packet.Packet)) {
+	d.cbWg.Wait()
+	d.onSend = f
 }
 
 // SetOnSendError sets f to be called every time an error is encountered sending. For example a no-route to host error.
 // If this is not set, Run() will stop and return error when sending encounters an error
 func (d *Dst) SetOnSendError(f func(*packet.Packet, error)) {
+	d.cbWg.Wait()
 	d.onSendError = f
 }
 
 // SetOnTimeout sets f to be called every time an ICMP reply is not recieved within timeout
 func (d *Dst) SetOnTimeout(f func(*packet.Packet)) {
+	d.cbWg.Wait()
 	d.onTimeout = f
 }
 
@@ -73,11 +80,13 @@ func (d *Dst) SetOnTimeout(f func(*packet.Packet)) {
 // error occurs. If this is not set, the host is only resolved once at the beginning of Run(). If an error occurs at this time, it is returned to Run().
 // If this is set, the host is re-resolved before sending each ping.
 func (d *Dst) SetOnResolveError(f func(*packet.Packet, error)) {
+	d.cbWg.Wait()
 	d.onResolveError = f
 }
 
 // EnableRandDelay enables randomly delaying the first packet up to interval.
 func (d *Dst) EnableRandDelay() {
+	d.cbWg.Wait()
 	d.randDelay = true
 }
 

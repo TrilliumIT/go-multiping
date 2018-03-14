@@ -3,7 +3,6 @@ package pinger
 import (
 	"math/rand"
 	"net"
-	"sync"
 	"time"
 
 	protoPinger "github.com/clinta/go-multiping/internal/pinger"
@@ -18,16 +17,18 @@ func init() {
 // After calling Stop(), Run will continue to block for timeout to allow the last packet to be returned.
 func (d *Dst) Run() error {
 	d.sending = make(chan struct{})
-	wg := sync.WaitGroup{}
 
-	onReply, onSend, onSendError := wrapCallbacks(
-		d.onReply, d.beforeSend, d.onSendError, d.onTimeout,
-		d.stop, d.sending, &wg, d.timeout, d.interval)
+	buf := 2 * (d.timeout.Nanoseconds() / d.interval.Nanoseconds())
+	if buf < 2 {
+		buf = 2
+	}
+	d.pktCh = make(chan *pkt, buf)
+	d.runSend()
 
 	t := make(chan struct{})
-	wg.Add(1)
+	d.cbWg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer d.cbWg.Done()
 		var rd time.Duration
 		if d.randDelay {
 			rd = time.Duration(rand.Int63n(d.interval.Nanoseconds()))
@@ -90,7 +91,7 @@ func (d *Dst) Run() error {
 				continue
 			}
 			if changed {
-				err := nPP.AddCallBack(nDst.IP, id, onReply)
+				err := nPP.AddCallBack(nDst.IP, id, d.afterReply)
 				if err != nil {
 					if _, ok := err.(*protoPinger.ErrorAlreadyExists); ok {
 						// Try a different ID
@@ -110,21 +111,21 @@ func (d *Dst) Run() error {
 			}
 		}
 		sp.Dst = dst.IP
+		d.beforeSend(sp)
 		err := pp.Send(dst, sp)
 		if err != nil {
-			if onSendError != nil {
-				onSendError(sp, err)
-				continue
+			// this returns nil if onError is set
+			err = d.afterSendError(sp, err)
+			if err != nil {
+				return err
 			}
-			return err
+			continue
 		}
-		if onSend != nil {
-			onSend(sp)
-		}
+		d.afterSend(sp)
 	}
 
 	close(d.sending)
-	wg.Wait()
+	d.cbWg.Wait()
 	select {
 	case <-d.stop:
 	default:
