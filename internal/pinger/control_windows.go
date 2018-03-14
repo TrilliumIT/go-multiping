@@ -14,7 +14,7 @@ func setPacketCon(c *icmp.PacketConn) error {
 	return nil
 }
 
-func listenPacket(c *icmp.PacketConn, r *recvMsg) error {
+func readPacket(c *icmp.PacketConn, r *recvMsg) error {
 	var err error
 	var src net.Addr
 	r.payloadLen, src, err = c.ReadFrom(r.payload)

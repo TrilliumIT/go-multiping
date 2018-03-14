@@ -22,7 +22,7 @@ func setPacketCon(c *icmp.PacketConn) error {
 	return err
 }
 
-func listenPacket(c *icmp.PacketConn, r *recvMsg) error {
+func readPacket(c *icmp.PacketConn, r *recvMsg) error {
 	var err error
 	switch {
 	case c.IPv4PacketConn() != nil:

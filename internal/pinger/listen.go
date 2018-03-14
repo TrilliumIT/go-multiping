@@ -55,13 +55,7 @@ func (p *Pinger) listen() (func() error, error) {
 				r := &recvMsg{
 					payload: make([]byte, p.expectedLen),
 				}
-				var err error
-				switch {
-				case p.Conn.IPv4PacketConn() != nil:
-					r.payloadLen, r.v4cm, _, err = p.Conn.IPv4PacketConn().ReadFrom(r.payload)
-				case p.Conn.IPv6PacketConn() != nil:
-					r.payloadLen, r.v6cm, _, err = p.Conn.IPv6PacketConn().ReadFrom(r.payload)
-				}
+				err := readPacket(p.Conn, r)
 				if err != nil {
 					continue
 				}
