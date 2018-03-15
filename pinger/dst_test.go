@@ -151,7 +151,7 @@ func MultiResolveError(t *testing.T) {
 
 // nolint:dupl
 func MultiSendError(t *testing.T) {
-	var ips = []string{"0.0.0.1", "::2", "0.0.0.5", "::5"}
+	var ips = []string{"0.0.0.1", "0.0.0.5"}
 	setup := func(d *Dst, f func(j int)) {
 		d.SetOnReply(func(p *ping.Ping) {
 			f(10)
