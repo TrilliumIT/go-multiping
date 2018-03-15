@@ -7,11 +7,6 @@ import (
 	"golang.org/x/net/icmp"
 )
 
-const (
-	workers  = 2
-	pktChLen = 16
-)
-
 func (p *Pinger) listen() (func() error, error) {
 	var err error
 	var wg sync.WaitGroup
@@ -46,8 +41,8 @@ func (p *Pinger) listen() (func() error, error) {
 		return err
 	}
 
-	rCh := make(chan *recvMsg, pktChLen)
-	for w := 0; w <= workers; w++ {
+	rCh := make(chan *recvMsg, p.pktChLen)
+	for w := 0; w <= p.workers; w++ {
 		wg.Add(1)
 		swg.Add(1)
 		go func() {
@@ -60,7 +55,7 @@ func (p *Pinger) listen() (func() error, error) {
 	}
 
 	lwg := sync.WaitGroup{}
-	for w := 0; w < workers; w++ {
+	for w := 0; w < p.workers; w++ {
 		swg.Add(1)
 		lwg.Add(1)
 		go func() {

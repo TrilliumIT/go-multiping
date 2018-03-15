@@ -17,7 +17,7 @@ import (
 
 // nolint:dupl
 func TestNewV4(t *testing.T) {
-	p := New(4)
+	p := New(4, 2, 16)
 	if p.callbacks == nil {
 		t.Error("callbacks should not be nil")
 	}
@@ -38,7 +38,7 @@ func TestNewV4(t *testing.T) {
 
 // nolint:dupl
 func TestNewV6(t *testing.T) {
-	p := New(6)
+	p := New(6, 2, 16)
 	if p.callbacks == nil {
 		t.Error("callbacks should not be nil")
 	}
@@ -63,12 +63,12 @@ func TestNewInvalidV(t *testing.T) {
 			t.Error("invalid pinger should panic")
 		}
 	}()
-	_ = New(5)
+	_ = New(5, 2, 16)
 }
 
 func TestAddCallBackNilIP(t *testing.T) {
 	cb := func(*ping.Ping) {}
-	p := New(4)
+	p := New(4, 2, 16)
 	err := p.AddCallBack(nil, 123, cb)
 	if err == nil {
 		t.Error("expected error with nil ip")
@@ -81,7 +81,7 @@ func TestAddCallBackNilIP(t *testing.T) {
 
 func TestAddCallBackNilCB(t *testing.T) {
 	var cb func(*ping.Ping)
-	p := New(4)
+	p := New(4, 2, 16)
 	err := p.AddCallBack(net.ParseIP("127.0.0.1"), 123, cb)
 	if err == nil {
 		t.Error("expected error with nil cb")
@@ -133,7 +133,7 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 		defer l.Unlock()
 		r2 = p.Seq
 	}
-	p := New(proto)
+	p := New(proto, 2, 16)
 	addCb(t, p, ip, id1, cb1, initGoRoutines)
 	singleListenerGoRoutines := runtime.NumGoroutine()
 	sendTo(t, p, ip, id1, 1)
@@ -209,7 +209,7 @@ func sendTo(t *testing.T, pp *Pinger, ip string, id, seq int) {
 }
 
 func TestListenFailure(t *testing.T) {
-	p := New(4)
+	p := New(4, 2, 16)
 	p.src = "::1"
 	f, err := p.listen()
 	if err == nil {

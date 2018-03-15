@@ -31,9 +31,15 @@ func getGlobalPinger() *Pinger {
 
 // NewPinger returns a new Pinger
 func NewPinger() *Pinger {
+	return NewPingerWorkers(2, 16)
+}
+
+// NewPingerWorkers returns a new Pinger with the specified number of workers and channel length
+// This type of tuning shouldn't be necessary for most workloads
+func NewPingerWorkers(workers, chanLen int) *Pinger {
 	return &Pinger{
-		v4Pinger: protoPinger.New(4),
-		v6Pinger: protoPinger.New(6),
+		v4Pinger: protoPinger.New(4, workers, chanLen),
+		v6Pinger: protoPinger.New(6, workers, chanLen),
 	}
 }
 

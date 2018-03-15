@@ -24,13 +24,17 @@ type Pinger struct {
 	callbacks   map[[18]byte]func(*ping.Ping)
 	expectedLen int
 	closeWait   func() error
+	workers     int
+	pktChLen    int
 }
 
 // New returns a new pinger
-func New(v int) *Pinger {
+func New(v, w, pkl int) *Pinger {
 	p := &Pinger{
 		callbacks: make(map[[18]byte]func(*ping.Ping)),
 		closeWait: func() error { return nil },
+		workers:   w,
+		pktChLen:  pkl,
 	}
 
 	var typ icmp.Type
