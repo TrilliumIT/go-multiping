@@ -11,10 +11,11 @@ import (
 // Send sends a packet. This also sets the sent time on the packet
 // nolint: interfacer
 // I want only an IPAddr not net.Addr others will throw erros
-func (pp *Pinger) Send(dst *net.IPAddr, sp *ping.Ping) error {
+func (pp *Pinger) Send(dst *net.IPAddr, sp *ping.Ping, to time.Duration) error {
 	var err error
 	for {
 		sp.Sent = time.Now()
+		sp.TimeOut = sp.Sent.Add(to)
 		var b []byte
 		b, err = sp.ToICMPMsg()
 		if err != nil {

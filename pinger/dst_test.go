@@ -105,6 +105,7 @@ func TestOnTimeout(t *testing.T) {
 		if err == nil && p.IsTimedOut() {
 			f(1)
 		} else {
+			fmt.Printf("p: %#v, err: %v", p, err)
 			f(100)
 		}
 	}

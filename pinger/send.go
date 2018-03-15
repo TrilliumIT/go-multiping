@@ -17,6 +17,7 @@ func init() {
 // After calling Stop(), Run will continue to block for timeout to allow the last packet to be returned.
 func (d *Dst) Run() error {
 	d.sending = make(chan struct{})
+	d.cbCh = make(chan *pktWErr)
 
 	buf := 2 * (d.timeout.Nanoseconds() / d.interval.Nanoseconds())
 	if buf < 2 {
@@ -112,7 +113,7 @@ func (d *Dst) Run() error {
 		}
 		sp.Dst = dst.IP
 		d.beforeSend(sp)
-		err := pp.Send(dst, sp)
+		err := pp.Send(dst, sp, d.timeout)
 		if err != nil {
 			// this returns nil if onError is set
 			err = d.afterSendError(sp, err)
@@ -126,6 +127,7 @@ func (d *Dst) Run() error {
 
 	close(d.sending)
 	d.cbWg.Wait()
+	close(d.cbCh)
 	select {
 	case <-d.stop:
 	default:

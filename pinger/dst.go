@@ -36,6 +36,7 @@ type Dst struct {
 	sending chan struct{}
 	cbWg    sync.WaitGroup
 	pktCh   chan *pkt
+	cbCh    chan *pktWErr
 }
 
 // NewDst creates a Dst

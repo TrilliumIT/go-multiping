@@ -6,57 +6,84 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
-func (d *Dst) afterReply(p *ping.Ping) {
-	d.pktCh <- &pkt{p, false}
-	if !p.Sent.Add(d.timeout).Before(p.Recieved) {
-		if d.callBack != nil {
-			d.cbWg.Add(1)
-			go func() {
-				d.callBack(p, nil)
-				d.cbWg.Done()
-			}()
+func (d *Dst) callbackWorker() {
+	if d.callBack == nil {
+		for range d.cbCh {
 		}
+	}
+	for pkt := range d.cbCh {
+		d.cbWg.Add(1)
+		d.callBack(pkt.p, pkt.err)
+		d.cbWg.Done()
+	}
+}
+
+type pktWErr struct {
+	p   *ping.Ping
+	err error
+}
+
+func (d *Dst) runCallback(p *ping.Ping, err error) {
+	d.cbWg.Add(1)
+	pkt := &pktWErr{p, err}
+	select {
+	case d.cbCh <- pkt:
+	default:
+		d.cbWg.Add(1)
+		go func() {
+			if d.callBack != nil {
+				d.callBack(p, err)
+			}
+			d.cbWg.Done()
+		}()
+	}
+	d.cbWg.Done()
+}
+
+func (d *Dst) afterReply(rp *ping.Ping) {
+	rCh := make(chan *ping.Ping)
+	defer close(rCh)
+	d.pktCh <- &pkt{rp, false, rCh}
+	p := <-rCh
+	if p == nil {
+		// dupliate packet, was not in pending map
+		return
+	}
+	p.Sent = rp.Sent // more accurate timestamp from body of recieved packet
+	p.TTL = rp.TTL
+	p.Len = rp.Len
+	if rp.Src != nil { // src is the actual source on recieved packet, rather than wildcard
+		p.Src = rp.Src
+	}
+	p.Recieved = rp.Recieved
+	if !p.Sent.Add(d.timeout).Before(p.Recieved) {
+		d.runCallback(p, nil)
 		return
 	}
 	d.afterTimeout(p)
 }
 
 func (d *Dst) beforeSend(p *ping.Ping) {
-	d.pktCh <- &pkt{p, true}
+	d.pktCh <- &pkt{p, true, nil}
 }
 
 func (d *Dst) afterSend(p *ping.Ping) {
 	if d.callBackOnSend {
-		d.cbWg.Add(1)
-		go func() {
-			d.callBack(p, nil)
-			d.cbWg.Done()
-		}()
+		d.runCallback(p, nil)
 	}
 }
 
 func (d *Dst) afterSendError(p *ping.Ping, err error) error {
-	d.pktCh <- &pkt{p, false}
+	d.pktCh <- &pkt{p, false, nil}
 	if d.reSend {
-		d.cbWg.Add(1)
-		go func() {
-			d.callBack(p, err)
-			d.cbWg.Done()
-		}()
+		d.runCallback(p, err)
 		return nil
 	}
 	return err
 }
 
 func (d *Dst) afterTimeout(p *ping.Ping) {
-	if d.callBack != nil {
-		d.cbWg.Add(1)
-		go func() {
-			p.TimeOut = p.Sent.Add(d.timeout)
-			d.callBack(p, nil)
-			d.cbWg.Done()
-		}()
-	}
+	d.runCallback(p, nil)
 }
 
 func (d *Dst) runSend() {
@@ -109,8 +136,9 @@ func (d *Dst) runSend() {
 }
 
 type pkt struct {
-	p *ping.Ping
-	a bool
+	p   *ping.Ping
+	a   bool
+	rCh chan<- *ping.Ping
 }
 
 func (d *Dst) processPkt(pending map[uint16]*ping.Ping, p *pkt, t *time.Timer) {
@@ -120,6 +148,9 @@ func (d *Dst) processPkt(pending map[uint16]*ping.Ping, p *pkt, t *time.Timer) {
 			resetTimer(t, time.Now(), d.timeout)
 		}
 	} else {
+		if p.rCh != nil {
+			p.rCh <- pending[uint16(p.p.Seq)]
+		}
 		delete(pending, uint16(p.p.Seq))
 	}
 	if len(pending) == 0 {

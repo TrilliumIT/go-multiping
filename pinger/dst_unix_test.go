@@ -3,6 +3,7 @@
 package pinger
 
 import (
+	"fmt"
 	"net"
 	"testing"
 
@@ -12,7 +13,12 @@ import (
 func TestOnSendError(t *testing.T) {
 	var ips = []string{"0.0.0.1", "0.0.0.5"}
 	cb := func(p *ping.Ping, err error, f func(j int)) {
-		if _, ok := err.(*net.DNSError); !ok && err != nil {
+		fmt.Printf("p: %v, err: %v\n", p, err)
+		if err == nil {
+			f(10)
+			return
+		}
+		if _, ok := err.(*net.DNSError); !ok {
 			f(1)
 		} else {
 			f(100)
@@ -21,5 +27,5 @@ func TestOnSendError(t *testing.T) {
 	setup := func(d *Dst, f func(j int)) {
 		d.EnableReSend()
 	}
-	testCallbacks(t, ips, 4, setup, cb, 2)
+	testCallbacks(t, ips, 4, setup, cb, 1)
 }

@@ -202,7 +202,7 @@ func sendTo(t *testing.T, pp *Pinger, ip string, id, seq int) {
 	if err != nil {
 		t.Error("unexpected error from resolve")
 	}
-	err = pp.Send(dst, p)
+	err = pp.Send(dst, p, time.Second)
 	if err != nil {
 		t.Errorf("unexpected error from send: %v", err)
 	}
