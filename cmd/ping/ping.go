@@ -57,7 +57,7 @@ func main() {
 		clock.Lock()
 		defer clock.Unlock()
 		recieved++
-		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT, pkt.TTL, pkt.Seq, pkt.ID)
+		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
 

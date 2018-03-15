@@ -77,7 +77,6 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 	}
 
 	p.Len = r.payloadLen
-	p.RTT = p.Recieved.Sub(p.Sent)
 
 	cb(p)
 }

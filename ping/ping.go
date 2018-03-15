@@ -47,8 +47,13 @@ type Ping struct {
 	TTL int
 	// Len is the length of the recieved packet
 	Len int
-	// RTT is the round trip time of the packet
-	RTT time.Duration
+}
+
+func (p *Ping) RTT() time.Duration {
+	if !p.Recieved.Before(p.Sent) {
+		return p.Recieved.Sub(p.Sent)
+	}
+	return 0
 }
 
 func (p *Ping) sendType() icmp.Type {
