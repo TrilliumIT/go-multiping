@@ -86,11 +86,8 @@ func (d *Dst) Run() error {
 			if err != nil && !d.reResolve {
 				return err
 			}
-			if err != nil {
-				err = d.afterSendError(sp, err)
-				if err != nil {
-					return err
-				}
+			if err != nil && d.callBack != nil {
+				d.callBack(sp, err)
 				continue
 			}
 			if changed {

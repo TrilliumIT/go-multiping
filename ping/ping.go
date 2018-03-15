@@ -49,6 +49,28 @@ type Ping struct {
 	Len int
 }
 
+func (p *Ping) IsTimedOut() bool {
+	if p.TimeOut.IsZero() {
+		return false
+	}
+	if !p.Recieved.IsZero() {
+		return p.Recieved.After(p.TimeOut)
+	}
+	return time.Now().After(p.TimeOut)
+}
+
+func (p *Ping) IsSent() bool {
+	return !p.Sent.IsZero()
+}
+
+func (p *Ping) IsRecieved() bool {
+	return !p.Recieved.IsZero()
+}
+
+func (p *Ping) IsPending() bool {
+	return p.IsSent() && !p.IsRecieved() && !p.IsTimedOut()
+}
+
 func (p *Ping) RTT() time.Duration {
 	if !p.Recieved.Before(p.Sent) {
 		return p.Recieved.Sub(p.Sent)

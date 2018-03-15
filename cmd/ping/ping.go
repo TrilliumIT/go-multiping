@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	//"runtime/pprof"
-	"net"
 	"sync"
 	"time"
 
@@ -50,44 +49,44 @@ func main() {
 		return
 	}
 
-	var recieved, dropped uint64
+	var recieved, dropped, errored uint64
 	var clock sync.Mutex
 
-	onReply := func(pkt *ping.Ping) {
+	callBack := func(pkt *ping.Ping, err error) {
 		clock.Lock()
-		defer clock.Unlock()
-		recieved++
-		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
-		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
-	}
-
-	onTimeout := func(pkt *ping.Ping) {
-		clock.Lock()
-		defer clock.Unlock()
-		dropped++
-		fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+		if err != nil {
+			errored++
+		} else {
+			if pkt.IsRecieved() && !pkt.IsTimedOut() {
+				recieved++
+			} else {
+				dropped++
+			}
+		}
+		clock.Unlock()
+		if err != nil {
+			fmt.Printf("Packet errored from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+		}
+		if pkt.IsRecieved() {
+			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
+		}
+		if pkt.IsTimedOut() {
+			fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+		}
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
 
 	var wg sync.WaitGroup
 	var stops []func()
 	for _, h := range flag.Args() {
-		d := pinger.NewDst(h, *interval, *timeout, *count)
-		d.SetOnReply(onReply)
-		d.SetOnTimeout(onTimeout)
+		d := pinger.NewDst(h, *interval, *timeout, *count, callBack)
 		if *reResolve {
 			d.EnableReResolve()
 		}
 		if *randDelay {
 			d.EnableRandDelay()
 		}
-		d.SetOnSendError(func(pkt *ping.Ping, err error) {
-			if _, ok := err.(*net.DNSError); ok {
-				fmt.Printf("Error resolving %v: %v\n", h, err)
-				return
-			}
-			fmt.Printf("Error sending to %v: %v\n", h, err)
-		})
+		d.EnableReSend()
 
 		wg.Add(1)
 		go func() {
