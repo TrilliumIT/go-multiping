@@ -55,11 +55,7 @@ func (p *Pinger) listen() (func() error, error) {
 					payload: make([]byte, p.expectedLen),
 				}
 				err := readPacket(p.Conn, r)
-				if err != nil {
-					continue
-				}
-				r.recieved = time.Now()
-				go p.processMessage(r)
+				go p.processMessage(r, time.Now(), err)
 			}
 		}
 	}()
