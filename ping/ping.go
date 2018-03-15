@@ -40,8 +40,8 @@ type Ping struct {
 	Sent time.Time
 	// Recieved is the time the echo was recieved.
 	Recieved time.Time
-	// TimedOut is the time the echo timed out
-	TimedOut time.Time
+	// TimeOut is the time the echo timed out
+	TimeOut time.Time
 	// TTL is the ttl on the recieved packet.
 	// This is not supported on windows and will always be zero
 	TTL int

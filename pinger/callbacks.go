@@ -52,7 +52,7 @@ func (d *Dst) afterTimeout(p *ping.Ping) {
 	if d.onTimeout != nil {
 		d.cbWg.Add(1)
 		go func() {
-			p.TimedOut = p.Sent.Add(d.timeout)
+			p.TimeOut = p.Sent.Add(d.timeout)
 			d.onTimeout(p)
 			d.cbWg.Done()
 		}()
