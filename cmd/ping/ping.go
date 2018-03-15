@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	//"runtime/pprof"
+	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -105,8 +105,14 @@ func main() {
 		<-c
 		//pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 		for _, s := range stops {
-			s()
+			go s()
 		}
+
+		go func() {
+			time.Sleep(30 * time.Second)
+			_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+			panic("die")
+		}()
 	}()
 
 	wg.Wait()

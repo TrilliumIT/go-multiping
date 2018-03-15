@@ -42,9 +42,14 @@ func (d *Dst) runCallback(p *ping.Ping, err error) {
 
 func (d *Dst) afterReply(rp *ping.Ping) {
 	rCh := make(chan *ping.Ping)
-	defer close(rCh)
-	d.pktCh <- &pkt{rp, false, rCh}
-	p := <-rCh
+	d.sendPkt(&pkt{rp, false, rCh, time.Time{}})
+	var p *ping.Ping
+	select {
+	case p = <-rCh:
+	case <-d.stop:
+		return
+	}
+	close(rCh)
 	if p == nil {
 		// dupliate packet, was not in pending map
 		return
@@ -64,7 +69,7 @@ func (d *Dst) afterReply(rp *ping.Ping) {
 }
 
 func (d *Dst) beforeSend(p *ping.Ping) {
-	d.pktCh <- &pkt{p, true, nil}
+	d.sendPkt(&pkt{p, true, nil, time.Time{}})
 }
 
 func (d *Dst) afterSend(p *ping.Ping) {
@@ -74,7 +79,7 @@ func (d *Dst) afterSend(p *ping.Ping) {
 }
 
 func (d *Dst) afterSendError(p *ping.Ping, err error) error {
-	d.pktCh <- &pkt{p, false, nil}
+	d.sendPkt(&pkt{p, false, nil, time.Time{}})
 	if d.reSend {
 		d.runCallback(p, err)
 		return nil
@@ -95,53 +100,74 @@ func (d *Dst) runSend() {
 			<-t.C
 		}
 		pending := make(map[uint16]*ping.Ping)
-		sendingTrigger := make(chan struct{}, 1)
+		donePending := make(chan struct{})
+		doneSending := make(chan struct{})
+
 		d.cbWg.Add(1)
 		go func() {
-			<-d.sending
-			sendingTrigger <- struct{}{}
+			select {
+			case <-d.sending:
+				doneSending <- struct{}{}
+			case <-d.stop:
+			}
 			d.cbWg.Done()
 		}()
-		for {
-			select {
-			case p := <-d.pktCh:
-				d.processPkt(pending, p, t)
-				continue
-			case <-d.stop:
-				return
-			default:
-			}
 
+		d.cbWg.Add(1)
+		go func() {
+			defer d.cbWg.Done()
+			defer close(d.pktCh)
+			for {
+				select {
+				case n := <-t.C:
+					d.pktCh <- &pkt{to: n}
+				case <-doneSending:
+					d.pktCh <- &pkt{to: time.Now()}
+				case <-d.stop:
+					return
+				case <-donePending:
+					return
+				}
+			}
+		}()
+
+		for p := range d.pktCh {
+			d.processPkt(pending, p, t)
 			select {
 			case <-d.sending:
 				if len(pending) == 0 {
-					return
+					close(donePending)
 				}
 			default:
 			}
-
-			select {
-			case p := <-d.pktCh:
-				d.processPkt(pending, p, t)
-				continue
-			case n := <-t.C:
-				d.processTimeout(pending, t, n)
-			case <-sendingTrigger:
-				continue
-			case <-d.stop:
-				return
-			}
 		}
 	}()
+}
+
+func (d *Dst) sendPkt(p *pkt) {
+	select {
+	case <-d.stop:
+		return
+	default:
+	}
+	select {
+	case <-d.stop:
+	case d.pktCh <- p:
+	}
 }
 
 type pkt struct {
 	p   *ping.Ping
 	a   bool
 	rCh chan<- *ping.Ping
+	to  time.Time
 }
 
 func (d *Dst) processPkt(pending map[uint16]*ping.Ping, p *pkt, t *time.Timer) {
+	if p.p == nil {
+		d.processTimeout(pending, t, p.to)
+		return
+	}
 	if p.a {
 		pending[uint16(p.p.Seq)] = p.p
 		if len(pending) == 1 {
