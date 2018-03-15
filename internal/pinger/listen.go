@@ -7,6 +7,11 @@ import (
 	"golang.org/x/net/icmp"
 )
 
+const (
+	workers  = 2
+	pktChLen = 16
+)
+
 func (p *Pinger) listen() (func() error, error) {
 	var err error
 	var wg sync.WaitGroup
@@ -41,23 +46,52 @@ func (p *Pinger) listen() (func() error, error) {
 		return err
 	}
 
+	rCh := make(chan *recvMsg, pktChLen)
+	for w := 0; w <= workers; w++ {
+		wg.Add(1)
+		swg.Add(1)
+		go func() {
+			defer wg.Done()
+			swg.Done()
+			for r := range rCh {
+				p.processMessage(r)
+			}
+		}()
+	}
+
+	lwg := sync.WaitGroup{}
+	for w := 0; w < workers; w++ {
+		swg.Add(1)
+		lwg.Add(1)
+		go func() {
+			defer lwg.Done()
+			swg.Done()
+			for {
+				select {
+				case <-p.stop:
+					return
+				default:
+					r := &recvMsg{
+						payload: make([]byte, p.expectedLen),
+					}
+					r.err = readPacket(p.Conn, r)
+					r.recieved = time.Now()
+					select {
+					case rCh <- r:
+					default:
+						// workers blocked
+						go p.processMessage(r)
+					}
+				}
+			}
+		}()
+	}
+
 	wg.Add(1)
-	swg.Add(1)
 	go func() {
 		defer wg.Done()
-		swg.Done()
-		for {
-			select {
-			case <-p.stop:
-				return
-			default:
-				r := &recvMsg{
-					payload: make([]byte, p.expectedLen),
-				}
-				err := readPacket(p.Conn, r)
-				go p.processMessage(r, time.Now(), err)
-			}
-		}
+		lwg.Wait()
+		close(rCh)
 	}()
 
 	swg.Wait()

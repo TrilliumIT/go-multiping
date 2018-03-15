@@ -15,17 +15,19 @@ type recvMsg struct {
 	v6cm       *ipv6.ControlMessage
 	payload    []byte
 	payloadLen int
+	recieved   time.Time
+	err        error
 }
 
-func (pp *Pinger) processMessage(r *recvMsg, t time.Time, err error) {
-	if err != nil {
+func (pp *Pinger) processMessage(r *recvMsg) {
+	if r.err != nil {
 		return
 	}
 
 	p := &ping.Ping{}
 	var proto int
 	var typ icmp.Type
-	p.Recieved = t
+	p.Recieved = r.recieved
 	if r.v4cm != nil {
 		p.Dst = r.v4cm.Src
 		p.Src = r.v4cm.Dst
@@ -48,8 +50,7 @@ func (pp *Pinger) processMessage(r *recvMsg, t time.Time, err error) {
 		return
 	}
 
-	var m *icmp.Message
-	m, err = icmp.ParseMessage(proto, r.payload[:r.payloadLen])
+	m, err := icmp.ParseMessage(proto, r.payload[:r.payloadLen])
 	if err != nil {
 		return
 	}
