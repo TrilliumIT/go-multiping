@@ -3,10 +3,10 @@ package pinger
 import (
 	"time"
 
-	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/ping"
 )
 
-func (d *Dst) afterReply(p *packet.Packet) {
+func (d *Dst) afterReply(p *ping.Ping) {
 	d.pktCh <- &pkt{p, false}
 	if !p.Sent.Add(d.timeout).Before(p.Recieved) {
 		if d.onReply != nil {
@@ -21,11 +21,11 @@ func (d *Dst) afterReply(p *packet.Packet) {
 	d.afterTimeout(p)
 }
 
-func (d *Dst) beforeSend(p *packet.Packet) {
+func (d *Dst) beforeSend(p *ping.Ping) {
 	d.pktCh <- &pkt{p, true}
 }
 
-func (d *Dst) afterSend(p *packet.Packet) {
+func (d *Dst) afterSend(p *ping.Ping) {
 	if d.onSend != nil {
 		d.cbWg.Add(1)
 		go func() {
@@ -35,7 +35,7 @@ func (d *Dst) afterSend(p *packet.Packet) {
 	}
 }
 
-func (d *Dst) afterSendError(p *packet.Packet, err error) error {
+func (d *Dst) afterSendError(p *ping.Ping, err error) error {
 	d.pktCh <- &pkt{p, false}
 	if d.onSendError != nil {
 		d.cbWg.Add(1)
@@ -48,7 +48,7 @@ func (d *Dst) afterSendError(p *packet.Packet, err error) error {
 	return err
 }
 
-func (d *Dst) afterTimeout(p *packet.Packet) {
+func (d *Dst) afterTimeout(p *ping.Ping) {
 	if d.onTimeout != nil {
 		d.cbWg.Add(1)
 		go func() {
@@ -67,7 +67,7 @@ func (d *Dst) runSend() {
 		if !t.Stop() {
 			<-t.C
 		}
-		pending := make(map[uint16]*packet.Packet)
+		pending := make(map[uint16]*ping.Ping)
 		sendingTrigger := make(chan struct{}, 1)
 		d.cbWg.Add(1)
 		go func() {
@@ -109,11 +109,11 @@ func (d *Dst) runSend() {
 }
 
 type pkt struct {
-	p *packet.Packet
+	p *ping.Ping
 	a bool
 }
 
-func (d *Dst) processPkt(pending map[uint16]*packet.Packet, p *pkt, t *time.Timer) {
+func (d *Dst) processPkt(pending map[uint16]*ping.Ping, p *pkt, t *time.Timer) {
 	if p.a {
 		pending[uint16(p.p.Seq)] = p.p
 		if len(pending) == 1 {
@@ -127,7 +127,7 @@ func (d *Dst) processPkt(pending map[uint16]*packet.Packet, p *pkt, t *time.Time
 	}
 }
 
-func (d *Dst) processTimeout(pending map[uint16]*packet.Packet, t *time.Timer, n time.Time) {
+func (d *Dst) processTimeout(pending map[uint16]*ping.Ping, t *time.Timer, n time.Time) {
 	var resetS time.Time
 	for s, p := range pending {
 		if p.Sent.Add(d.timeout).Before(n) {

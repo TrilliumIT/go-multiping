@@ -1,4 +1,4 @@
-package packet
+package ping
 
 import (
 	"encoding/binary"
@@ -22,8 +22,8 @@ const (
 	ProtocolIPv6ICMP = 58 // ICMP for IPv6
 )
 
-// Packet is an ICMP packet that has been received
-type Packet struct {
+// Ping is an ICMP packet that has been received
+type Ping struct {
 	// Src is the source IP. This is probably 0.0.0.0 for sent packets, but a
 	// specific IP on the sending host for recieved packets
 	Src net.IP
@@ -51,7 +51,7 @@ type Packet struct {
 	RTT time.Duration
 }
 
-func (p *Packet) sendType() icmp.Type {
+func (p *Ping) sendType() icmp.Type {
 	if p.Dst.To4() != nil {
 		return ipv4.ICMPTypeEcho
 	}
@@ -59,7 +59,7 @@ func (p *Packet) sendType() icmp.Type {
 }
 
 // ToICMPMsg returns a byte array ready to send on the wire
-func (p *Packet) ToICMPMsg() ([]byte, error) {
+func (p *Ping) ToICMPMsg() ([]byte, error) {
 	return (&icmp.Message{
 		Code: 0,
 		Type: p.sendType(),

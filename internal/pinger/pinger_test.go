@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/ping"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 )
@@ -67,7 +67,7 @@ func TestNewInvalidV(t *testing.T) {
 }
 
 func TestAddCallBackNilIP(t *testing.T) {
-	cb := func(*packet.Packet) {}
+	cb := func(*ping.Ping) {}
 	p := New(4)
 	err := p.AddCallBack(nil, 123, cb)
 	if err == nil {
@@ -80,7 +80,7 @@ func TestAddCallBackNilIP(t *testing.T) {
 }
 
 func TestAddCallBackNilCB(t *testing.T) {
-	var cb func(*packet.Packet)
+	var cb func(*ping.Ping)
 	p := New(4)
 	err := p.AddCallBack(net.ParseIP("127.0.0.1"), 123, cb)
 	if err == nil {
@@ -92,7 +92,7 @@ func TestAddCallBackNilCB(t *testing.T) {
 	}
 }
 
-func addCb(t *testing.T, p *Pinger, ip string, id int, cb func(*packet.Packet), irt int) {
+func addCb(t *testing.T, p *Pinger, ip string, id int, cb func(*ping.Ping), irt int) {
 	err := p.AddCallBack(net.ParseIP(ip), id, cb)
 	if err != nil {
 		t.Error("unexpected error with valid callback")
@@ -123,12 +123,12 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	l.Lock()
 	r1, r2 := 0, 0
 	l.Unlock()
-	cb1 := func(p *packet.Packet) {
+	cb1 := func(p *ping.Ping) {
 		l.Lock()
 		defer l.Unlock()
 		r1 = p.Seq
 	}
-	cb2 := func(p *packet.Packet) {
+	cb2 := func(p *ping.Ping) {
 		l.Lock()
 		defer l.Unlock()
 		r2 = p.Seq
@@ -198,7 +198,7 @@ func TestCallBacksv6(t *testing.T) {
 
 func sendTo(t *testing.T, pp *Pinger, ip string, id, seq int) {
 	dst, err := net.ResolveIPAddr("ip", ip)
-	p := &packet.Packet{Dst: dst.IP, ID: id, Seq: seq}
+	p := &ping.Ping{Dst: dst.IP, ID: id, Seq: seq}
 	if err != nil {
 		t.Error("unexpected error from resolve")
 	}

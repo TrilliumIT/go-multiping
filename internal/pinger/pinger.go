@@ -10,7 +10,7 @@ import (
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 
-	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/ping"
 )
 
 // Pinger is a protocol specific pinger, either ipv4 or ipv6
@@ -21,7 +21,7 @@ type Pinger struct {
 	sendType    icmp.Type
 	Conn        *icmp.PacketConn
 	cbLock      sync.RWMutex
-	callbacks   map[[18]byte]func(*packet.Packet)
+	callbacks   map[[18]byte]func(*ping.Ping)
 	expectedLen int
 	closeWait   func() error
 }
@@ -29,7 +29,7 @@ type Pinger struct {
 // New returns a new pinger
 func New(v int) *Pinger {
 	p := &Pinger{
-		callbacks: make(map[[18]byte]func(*packet.Packet)),
+		callbacks: make(map[[18]byte]func(*ping.Ping)),
 		closeWait: func() error { return nil },
 	}
 
@@ -55,7 +55,7 @@ func New(v int) *Pinger {
 	if m, err := (&icmp.Message{
 		Type: typ,
 		Body: &icmp.Echo{
-			Data: make([]byte, packet.TimeSliceLength),
+			Data: make([]byte, ping.TimeSliceLength),
 		},
 	}).Marshal(nil); err == nil {
 		p.expectedLen = len(m) + addLen
@@ -84,7 +84,7 @@ func (pp *Pinger) Network() string {
 }
 
 // GetCallback returns the OnRecieve callback for for a given IP and icmp id
-func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*packet.Packet), bool) {
+func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*ping.Ping), bool) {
 	ip = cbIP(ip)
 	k := dstKey(ip, uint16(id))
 	pp.cbLock.RLock()
@@ -103,7 +103,7 @@ func (e *ErrorAlreadyExists) Error() string {
 
 // AddCallBack adds an OnRecieve callback for a given IP and icmp id
 // This implicitly starts the listening for these packets
-func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*packet.Packet)) error {
+func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*ping.Ping)) error {
 	ip = cbIP(ip)
 	if ip == nil {
 		return fmt.Errorf("invalid ip")

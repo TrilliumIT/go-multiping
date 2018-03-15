@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/ping"
 )
 
 func TestMain(m *testing.M) {
@@ -83,7 +83,7 @@ func TestNoCallbacks(t *testing.T) {
 func TestOnReply(t *testing.T) {
 	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3", "::1", "::1", "::1"}
 	setup := func(d *Dst, f func(j int)) {
-		d.SetOnReply(func(*packet.Packet) { f(1) })
+		d.SetOnReply(func(*ping.Ping) { f(1) })
 	}
 	testCallbacks(t, ips, 4, setup, 1)
 }
@@ -91,7 +91,7 @@ func TestOnReply(t *testing.T) {
 func TestOnTimeout(t *testing.T) {
 	var ips = []string{"192.0.2.0", "198.51.100.0", "203.0.113.0", "fe80::2", "fe80::3", "fe80::4"}
 	setup := func(d *Dst, f func(j int)) {
-		d.SetOnTimeout(func(*packet.Packet) { f(1) })
+		d.SetOnTimeout(func(*ping.Ping) { f(1) })
 	}
 	testCallbacks(t, ips, 4, setup, 1)
 }
@@ -99,7 +99,7 @@ func TestOnTimeout(t *testing.T) {
 func TestOnResolveError(t *testing.T) {
 	var ips = []string{"foo.test", "bar.test", "baz.test"}
 	setup := func(d *Dst, f func(j int)) {
-		d.SetOnSendError(func(p *packet.Packet, err error) {
+		d.SetOnSendError(func(p *ping.Ping, err error) {
 			if _, ok := err.(*net.DNSError); ok {
 				f(1)
 			}
@@ -112,13 +112,13 @@ func TestOnResolveError(t *testing.T) {
 func MultiValid(t *testing.T) {
 	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3", "::1", "::1", "::1"}
 	setup := func(d *Dst, f func(j int)) {
-		d.SetOnReply(func(p *packet.Packet) {
+		d.SetOnReply(func(p *ping.Ping) {
 			f(1)
 		})
-		d.SetOnSend(func(*packet.Packet) {
+		d.SetOnSend(func(*ping.Ping) {
 			f(10)
 		})
-		d.SetOnSendError(func(*packet.Packet, error) {
+		d.SetOnSendError(func(*ping.Ping, error) {
 			f(100)
 		})
 		d.EnableRandDelay()
@@ -130,13 +130,13 @@ func MultiValid(t *testing.T) {
 func MultiResolveError(t *testing.T) {
 	var ips = []string{"foo.test", "bar.test", "baz.test"}
 	setup := func(d *Dst, f func(j int)) {
-		d.SetOnReply(func(p *packet.Packet) {
+		d.SetOnReply(func(p *ping.Ping) {
 			f(100)
 		})
-		d.SetOnSend(func(*packet.Packet) {
+		d.SetOnSend(func(*ping.Ping) {
 			f(10)
 		})
-		d.SetOnSendError(func(p *packet.Packet, err error) {
+		d.SetOnSendError(func(p *ping.Ping, err error) {
 			if _, ok := err.(*net.DNSError); ok {
 				f(1)
 				return
@@ -153,13 +153,13 @@ func MultiResolveError(t *testing.T) {
 func MultiSendError(t *testing.T) {
 	var ips = []string{"0.0.0.1", "::2", "0.0.0.5", "::5"}
 	setup := func(d *Dst, f func(j int)) {
-		d.SetOnReply(func(p *packet.Packet) {
+		d.SetOnReply(func(p *ping.Ping) {
 			f(10)
 		})
-		d.SetOnSend(func(*packet.Packet) {
+		d.SetOnSend(func(*ping.Ping) {
 			f(100)
 		})
-		d.SetOnSendError(func(p *packet.Packet, err error) {
+		d.SetOnSendError(func(p *ping.Ping, err error) {
 			if _, ok := err.(*net.DNSError); ok {
 				f(1000)
 				return

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/ping"
 )
 
 // Dst is a destination host to be pinged
@@ -21,10 +21,10 @@ type Dst struct {
 	randDelay bool
 	reResolve bool
 	// callbacks
-	onReply     func(*packet.Packet)
-	onSend      func(*packet.Packet)
-	onSendError func(*packet.Packet, error)
-	onTimeout   func(*packet.Packet)
+	onReply     func(*ping.Ping)
+	onSend      func(*ping.Ping)
+	onSendError func(*ping.Ping, error)
+	onTimeout   func(*ping.Ping)
 
 	pinger  *Pinger
 	stop    chan struct{}
@@ -51,13 +51,13 @@ func (p *Pinger) NewDst(host string, interval, timeout time.Duration, count int)
 }
 
 // SetOnReply sets f to be called every time an ICMP reply is recieved
-func (d *Dst) SetOnReply(f func(*packet.Packet)) {
+func (d *Dst) SetOnReply(f func(*ping.Ping)) {
 	d.cbWg.Wait()
 	d.onReply = f
 }
 
 // SetOnSend sets f to be called every time a packet is sent
-func (d *Dst) SetOnSend(f func(*packet.Packet)) {
+func (d *Dst) SetOnSend(f func(*ping.Ping)) {
 	d.cbWg.Wait()
 	d.onSend = f
 }
@@ -68,13 +68,13 @@ func (d *Dst) SetOnSend(f func(*packet.Packet)) {
 // Windows does not properly report send errors for non-routable ips
 // The built in ping command in windows will return "transmit failed", but
 // no error is returned to go when doing the same thing.
-func (d *Dst) SetOnSendError(f func(*packet.Packet, error)) {
+func (d *Dst) SetOnSendError(f func(*ping.Ping, error)) {
 	d.cbWg.Wait()
 	d.onSendError = f
 }
 
 // SetOnTimeout sets f to be called every time an ICMP reply is not recieved within timeout
-func (d *Dst) SetOnTimeout(f func(*packet.Packet)) {
+func (d *Dst) SetOnTimeout(f func(*ping.Ping)) {
 	d.cbWg.Wait()
 	d.onTimeout = f
 }

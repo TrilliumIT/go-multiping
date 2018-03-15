@@ -6,7 +6,7 @@ import (
 	"time"
 
 	protoPinger "github.com/TrilliumIT/go-multiping/internal/pinger"
-	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/ping"
 )
 
 func init() {
@@ -76,7 +76,7 @@ func (d *Dst) Run() error {
 		if d.count > 0 && count >= d.count {
 			break
 		}
-		sp := &packet.Packet{
+		sp := &ping.Ping{
 			ID:   id,
 			Seq:  int(uint16(count)),
 			Sent: time.Now(),

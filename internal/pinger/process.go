@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 
-	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/ping"
 )
 
 type recvMsg struct {
@@ -21,20 +21,20 @@ type recvMsg struct {
 func (pp *Pinger) processMessage(r *recvMsg) {
 	var proto int
 	var typ icmp.Type
-	p := &packet.Packet{}
+	p := &ping.Ping{}
 	p.Recieved = r.recieved
 	if r.v4cm != nil {
 		p.Dst = r.v4cm.Src
 		p.Src = r.v4cm.Dst
 		p.TTL = r.v4cm.TTL
-		proto = packet.ProtocolICMP
+		proto = ping.ProtocolICMP
 		typ = ipv4.ICMPTypeEchoReply
 	}
 	if r.v6cm != nil {
 		p.Dst = r.v6cm.Src
 		p.Src = r.v6cm.Dst
 		p.TTL = r.v6cm.HopLimit
-		proto = packet.ProtocolIPv6ICMP
+		proto = ping.ProtocolIPv6ICMP
 		typ = ipv6.ICMPTypeEchoReply
 	}
 	if p.Dst == nil {
@@ -62,7 +62,7 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 	p.ID = e.ID
 	p.Seq = e.Seq
 
-	p.Sent, err = packet.BytesToTime(e.Data)
+	p.Sent, err = ping.BytesToTime(e.Data)
 	if err != nil {
 		return
 	}

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/ping"
 	"github.com/TrilliumIT/go-multiping/pinger"
 )
 
@@ -53,7 +53,7 @@ func main() {
 	var recieved, dropped uint64
 	var clock sync.Mutex
 
-	onReply := func(pkt *packet.Packet) {
+	onReply := func(pkt *ping.Ping) {
 		clock.Lock()
 		defer clock.Unlock()
 		recieved++
@@ -61,7 +61,7 @@ func main() {
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
 
-	onTimeout := func(pkt *packet.Packet) {
+	onTimeout := func(pkt *ping.Ping) {
 		clock.Lock()
 		defer clock.Unlock()
 		dropped++
@@ -81,7 +81,7 @@ func main() {
 		if *randDelay {
 			d.EnableRandDelay()
 		}
-		d.SetOnSendError(func(pkt *packet.Packet, err error) {
+		d.SetOnSendError(func(pkt *ping.Ping, err error) {
 			if _, ok := err.(*net.DNSError); ok {
 				fmt.Printf("Error resolving %v: %v\n", h, err)
 				return

@@ -5,13 +5,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TrilliumIT/go-multiping/packet"
+	"github.com/TrilliumIT/go-multiping/ping"
 )
 
 // Send sends a packet. This also sets the sent time on the packet
 // nolint: interfacer
 // I want only an IPAddr not net.Addr others will throw erros
-func (pp *Pinger) Send(dst *net.IPAddr, sp *packet.Packet) error {
+func (pp *Pinger) Send(dst *net.IPAddr, sp *ping.Ping) error {
 	var err error
 	for {
 		sp.Sent = time.Now()
