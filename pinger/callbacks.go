@@ -88,23 +88,21 @@ func (d *Dst) runSend() {
 				select {
 				case p := <-d.pktCh:
 					d.processPkt(pending, p, t)
-					continue
 				case n := <-t.C:
 					d.processTimeout(pending, t, n)
 				case <-d.stop:
 					return
 				}
+				continue
 			}
 
 			select {
 			case p := <-d.pktCh:
 				d.processPkt(pending, p, t)
-				continue
 			case n := <-t.C:
 				d.processTimeout(pending, t, n)
 			case <-d.sending:
 				doneSending = true
-				continue
 			case <-d.stop:
 				return
 			}
