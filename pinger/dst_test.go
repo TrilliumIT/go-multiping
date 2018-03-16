@@ -116,7 +116,7 @@ func TestOnReplyExpire(t *testing.T) {
 		}
 		//f(1)
 	}
-	testCallbacks(t, ips, 4, 5*time.Second, nil, cb, 0)
+	testCallbacks(t, ips, 0, 5*time.Second, nil, cb, 0)
 }
 
 func TestOnTimeout(t *testing.T) {
