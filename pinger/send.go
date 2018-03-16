@@ -87,10 +87,11 @@ func (d *Dst) Run() error {
 				return err
 			}
 			if err != nil {
-				err = d.afterSendError(sp, err)
-				if err != nil {
-					return err
-				}
+				d.cbWg.Add(1)
+				go func() {
+					d.callBack(sp, err)
+					d.cbWg.Done()
+				}()
 				continue
 			}
 			if changed {
@@ -115,7 +116,7 @@ func (d *Dst) Run() error {
 		}
 		sp.Dst = dst.IP
 		d.beforeSend(sp)
-		err := pp.Send(dst, sp)
+		err := pp.Send(dst, sp, d.timeout)
 		if err != nil {
 			// this returns nil if onError is set
 			err = d.afterSendError(sp, err)

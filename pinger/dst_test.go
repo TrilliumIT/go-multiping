@@ -1,6 +1,7 @@
 package pinger
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"runtime"
@@ -41,6 +42,7 @@ func testCallbacks(
 	ips []string,
 	count int,
 	setup func(d *Dst, f func(j int)),
+	cb func(p *ping.Ping, e error, f func(j int)),
 	countMultiplier int,
 ) {
 	igr := runtime.NumGoroutine()
@@ -58,8 +60,15 @@ func testCallbacks(
 				i += j
 				ti += j
 			}
-			d := NewDst(ip, 100*time.Millisecond, time.Second, count)
-			setup(d, f)
+			cbw := func(p *ping.Ping, err error) {
+				if cb != nil {
+					cb(p, err, f)
+				}
+			}
+			d := NewDst(ip, 100*time.Millisecond, time.Second, count, cbw)
+			if setup != nil {
+				setup(d, f)
+			}
 			checkErr(t, d.Run())
 			if i != count*countMultiplier {
 				t.Errorf("only %v of %v packets counted for %v", i, count, ip)
@@ -77,97 +86,100 @@ func testCallbacks(
 func TestNoCallbacks(t *testing.T) {
 	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3", "::1", "::1", "::1"}
 	setup := func(d *Dst, f func(int)) {}
-	testCallbacks(t, ips, 4, setup, 0)
+	testCallbacks(t, ips, 4, setup, nil, 0)
 }
 
 func TestOnReply(t *testing.T) {
 	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3", "::1", "::1", "::1"}
-	setup := func(d *Dst, f func(j int)) {
-		d.SetOnReply(func(*ping.Ping) { f(1) })
+	cb := func(p *ping.Ping, err error, f func(j int)) {
+		if err == nil && p.IsRecieved() && !p.IsTimedOut() {
+			f(1)
+		}
 	}
-	testCallbacks(t, ips, 4, setup, 1)
+	testCallbacks(t, ips, 4, nil, cb, 1)
 }
 
 func TestOnTimeout(t *testing.T) {
 	var ips = []string{"192.0.2.0", "198.51.100.0", "203.0.113.0", "fe80::2", "fe80::3", "fe80::4"}
-	setup := func(d *Dst, f func(j int)) {
-		d.SetOnTimeout(func(*ping.Ping) { f(1) })
+	cb := func(p *ping.Ping, err error, f func(j int)) {
+		if err == nil && p.IsTimedOut() {
+			f(1)
+		} else {
+			fmt.Printf("p: %#v, err: %v", p, err)
+			f(100)
+		}
 	}
-	testCallbacks(t, ips, 4, setup, 1)
+	testCallbacks(t, ips, 4, nil, cb, 1)
 }
 
 func TestOnResolveError(t *testing.T) {
 	var ips = []string{"foo.test", "bar.test", "baz.test"}
-	setup := func(d *Dst, f func(j int)) {
-		d.SetOnSendError(func(p *ping.Ping, err error) {
-			if _, ok := err.(*net.DNSError); ok {
-				f(1)
-			}
-		})
-		d.EnableReResolve()
+	cb := func(p *ping.Ping, err error, f func(j int)) {
+		if _, ok := err.(*net.DNSError); ok {
+			f(1)
+		} else {
+			f(100)
+		}
 	}
-	testCallbacks(t, ips, 4, setup, 1)
+	setup := func(d *Dst, f func(j int)) {
+		d.EnableReResolve()
+		fmt.Printf("Reresolve enabled: %v\n", d.reResolve)
+	}
+	testCallbacks(t, ips, 4, setup, cb, 1)
 }
 
 func MultiValid(t *testing.T) {
 	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3", "::1", "::1", "::1"}
-	setup := func(d *Dst, f func(j int)) {
-		d.SetOnReply(func(p *ping.Ping) {
+	cb := func(p *ping.Ping, err error, f func(j int)) {
+		if err == nil && p.IsRecieved() && !p.IsTimedOut() {
 			f(1)
-		})
-		d.SetOnSend(func(*ping.Ping) {
-			f(10)
-		})
-		d.SetOnSendError(func(*ping.Ping, error) {
+		} else {
 			f(100)
-		})
-		d.EnableRandDelay()
+		}
 	}
-	testCallbacks(t, ips, 4, setup, 2)
+	setup := func(d *Dst, f func(j int)) {
+		d.EnableCallBackOnSend()
+		d.EnableRandDelay()
+		d.EnableReResolve()
+		d.EnableReSend()
+	}
+	testCallbacks(t, ips, 4, setup, cb, 2)
 }
 
 // nolint:dupl
 func MultiResolveError(t *testing.T) {
 	var ips = []string{"foo.test", "bar.test", "baz.test"}
-	setup := func(d *Dst, f func(j int)) {
-		d.SetOnReply(func(p *ping.Ping) {
+	cb := func(p *ping.Ping, err error, f func(j int)) {
+		if _, ok := err.(*net.DNSError); ok {
+			f(1)
+		} else {
 			f(100)
-		})
-		d.SetOnSend(func(*ping.Ping) {
-			f(10)
-		})
-		d.SetOnSendError(func(p *ping.Ping, err error) {
-			if _, ok := err.(*net.DNSError); ok {
-				f(1)
-				return
-			}
-			f(1000)
-		})
+		}
+	}
+	setup := func(d *Dst, f func(j int)) {
+		d.EnableCallBackOnSend()
 		d.EnableRandDelay()
 		d.EnableReResolve()
+		d.EnableReSend()
 	}
-	testCallbacks(t, ips, 4, setup, 1)
+	testCallbacks(t, ips, 4, setup, cb, 2)
 }
 
 // nolint:dupl
 func MultiSendError(t *testing.T) {
 	var ips = []string{"0.0.0.1", "0.0.0.5"}
-	setup := func(d *Dst, f func(j int)) {
-		d.SetOnReply(func(p *ping.Ping) {
-			f(10)
-		})
-		d.SetOnSend(func(*ping.Ping) {
-			f(100)
-		})
-		d.SetOnSendError(func(p *ping.Ping, err error) {
-			if _, ok := err.(*net.DNSError); ok {
-				f(1000)
-				return
-			}
+	cb := func(p *ping.Ping, err error, f func(j int)) {
+		if _, ok := err.(*net.DNSError); !ok && err != nil {
 			f(1)
-		})
-		d.EnableReResolve()
-		d.EnableRandDelay()
+		} else {
+			f(100)
+		}
 	}
-	testCallbacks(t, ips, 4, setup, 1)
+	setup := func(d *Dst, f func(j int)) {
+		d.EnableCallBackOnSend()
+		d.EnableRandDelay()
+		d.EnableReResolve()
+		d.EnableReSend()
+	}
+	testCallbacks(t, ips, 4, setup, cb, 2)
 }

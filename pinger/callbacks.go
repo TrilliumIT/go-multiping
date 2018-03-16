@@ -7,12 +7,13 @@ import (
 )
 
 func (d *Dst) afterReply(p *ping.Ping) {
+	p.TimeOut = p.Sent.Add(d.timeout)
 	d.pktCh <- &pkt{p, false}
 	if !p.Sent.Add(d.timeout).Before(p.Recieved) {
-		if d.onReply != nil {
+		if d.callBack != nil {
 			d.cbWg.Add(1)
 			go func() {
-				d.onReply(p)
+				d.callBack(p, nil)
 				d.cbWg.Done()
 			}()
 		}
@@ -26,10 +27,10 @@ func (d *Dst) beforeSend(p *ping.Ping) {
 }
 
 func (d *Dst) afterSend(p *ping.Ping) {
-	if d.onSend != nil {
+	if d.callBackOnSend {
 		d.cbWg.Add(1)
 		go func() {
-			d.onSend(p)
+			d.callBack(p, nil)
 			d.cbWg.Done()
 		}()
 	}
@@ -37,10 +38,10 @@ func (d *Dst) afterSend(p *ping.Ping) {
 
 func (d *Dst) afterSendError(p *ping.Ping, err error) error {
 	d.pktCh <- &pkt{p, false}
-	if d.onSendError != nil {
+	if d.reSend {
 		d.cbWg.Add(1)
 		go func() {
-			d.onSendError(p, err)
+			d.callBack(p, err)
 			d.cbWg.Done()
 		}()
 		return nil
@@ -49,11 +50,10 @@ func (d *Dst) afterSendError(p *ping.Ping, err error) error {
 }
 
 func (d *Dst) afterTimeout(p *ping.Ping) {
-	if d.onTimeout != nil {
+	if d.callBack != nil {
 		d.cbWg.Add(1)
 		go func() {
-			p.TimeOut = p.Sent.Add(d.timeout)
-			d.onTimeout(p)
+			d.callBack(p, nil)
 			d.cbWg.Done()
 		}()
 	}
