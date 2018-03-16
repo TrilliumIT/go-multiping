@@ -149,8 +149,10 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 		t.Error("expected error on dupliate callback")
 	}
 	addCb(t, p, ip, id2, cb2, initGoRoutines)
-	if runtime.NumGoroutine() != singleListenerGoRoutines {
-		fmt.Println(runtime.NumGoroutine() - singleListenerGoRoutines)
+	pro := pprof.Lookup("goroutine")
+	if pro.Count() != singleListenerGoRoutines {
+		fmt.Println(pro.Count() - singleListenerGoRoutines)
+		pro.WriteTo(os.Stdout, 1)
 		t.Error("listeners changing")
 	}
 	sendTo(t, p, ip, id1, 2)
@@ -162,8 +164,10 @@ func testCallBacks(t *testing.T, proto int, ip string, id1, id2 int) {
 	}
 	l.Unlock()
 	delCB(t, p, ip, id1)
+	pro = pprof.Lookup("goroutine")
 	if runtime.NumGoroutine() != singleListenerGoRoutines {
-		fmt.Println(runtime.NumGoroutine() - singleListenerGoRoutines)
+		fmt.Println(pro.Count() - singleListenerGoRoutines)
+		pro.WriteTo(os.Stdout, 1)
 		t.Error("listeners changing")
 	}
 	sendTo(t, p, ip, id1, 3)

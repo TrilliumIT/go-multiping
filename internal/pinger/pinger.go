@@ -126,13 +126,16 @@ func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*ping.Ping)) error {
 		return &ErrorAlreadyExists{}
 	}
 	pp.callbacks[k] = cb
-	if len(pp.callbacks) == 1 {
-		pp.stop = make(chan struct{})
-		var err error
-		pp.closeWait, err = pp.listen()
-		if err != nil {
-			return err
-		}
+	if len(pp.callbacks) > 1 {
+		return nil
+	}
+	pp.delLock.Lock()
+	defer pp.delLock.Unlock()
+	pp.stop = make(chan struct{})
+	var err error
+	pp.closeWait, err = pp.listen()
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -152,10 +155,11 @@ func (pp *Pinger) DelCallBack(ip net.IP, id int) error {
 	}
 	closewait := &pp.closeWait
 	stop := &pp.stop
-	pp.cbLock.Unlock()
 
 	pp.delLock.Lock()
 	defer pp.delLock.Unlock()
+
+	pp.cbLock.Unlock()
 	// closewait triggers process which calls getCallback which needs to be able
 	// to rlock. I know nothing else that rlocks writes to pp.closewait, so this is safe
 	pp.cbLock.RLock()
