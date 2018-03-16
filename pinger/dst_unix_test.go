@@ -27,5 +27,5 @@ func TestOnSendError(t *testing.T) {
 	setup := func(d *Dst, f func(j int)) {
 		d.EnableReSend()
 	}
-	testCallbacks(t, ips, 4, setup, cb, 1)
+	testCallbacks(t, ips, 4, 0, setup, cb, 1)
 }
