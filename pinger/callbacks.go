@@ -1,6 +1,7 @@
 package pinger
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping"
@@ -67,16 +68,15 @@ func (d *Dst) runSend() {
 	d.cbWg.Add(1)
 	go func() {
 		defer d.cbWg.Done()
-		t := time.NewTimer(d.timeout)
-		if !t.Stop() {
-			<-t.C
-		}
+		t := time.NewTimer(time.Hour)
+		stopTimer(t)
+		nextTimeout := time.Time{}
 		pending := make(map[uint16]*ping.Ping)
 		doneSending := false
 		for {
 			select {
 			case p := <-d.pktCh:
-				d.processPkt(pending, p, t)
+				nextTimeout = d.processPkt(pending, p, t, nextTimeout)
 				continue
 			case <-d.stop:
 				return
@@ -88,11 +88,14 @@ func (d *Dst) runSend() {
 					return
 				}
 
+				fmt.Printf("len pending: %v\n", len(pending))
+				fmt.Printf("next timeout: %v\n", nextTimeout)
+
 				select {
 				case p := <-d.pktCh:
-					d.processPkt(pending, p, t)
+					nextTimeout = d.processPkt(pending, p, t, nextTimeout)
 				case n := <-t.C:
-					d.processTimeout(pending, t, n)
+					nextTimeout = d.processTimeout(pending, t, n)
 				case <-d.stop:
 					return
 				}
@@ -101,9 +104,9 @@ func (d *Dst) runSend() {
 
 			select {
 			case p := <-d.pktCh:
-				d.processPkt(pending, p, t)
+				nextTimeout = d.processPkt(pending, p, t, nextTimeout)
 			case n := <-t.C:
-				d.processTimeout(pending, t, n)
+				nextTimeout = d.processTimeout(pending, t, n)
 			case <-d.sending:
 				doneSending = true
 			case <-d.stop:
@@ -118,22 +121,26 @@ type pkt struct {
 	a bool
 }
 
-func (d *Dst) processPkt(pending map[uint16]*ping.Ping, p *pkt, t *time.Timer) {
+func (d *Dst) processPkt(pending map[uint16]*ping.Ping, p *pkt, t *time.Timer, nt time.Time) time.Time {
 	if p.a {
 		pending[uint16(p.p.Seq)] = p.p
-		if len(pending) == 1 {
-			resetTimer(t, time.Now(), d.timeout)
-		}
 	} else {
 		delete(pending, uint16(p.p.Seq))
 	}
 	if len(pending) == 0 {
 		stopTimer(t)
+		nt = time.Time{}
+		return nt
 	}
+	if nt.IsZero() || nt.After(time.Now().Add(d.timeout)) {
+		nt = time.Now().Add(d.timeout)
+		resetTimer(t, nt)
+	}
+	return nt
 }
 
-func (d *Dst) processTimeout(pending map[uint16]*ping.Ping, t *time.Timer, n time.Time) {
-	var resetS time.Time
+func (d *Dst) processTimeout(pending map[uint16]*ping.Ping, t *time.Timer, n time.Time) time.Time {
+	var nextTimeout time.Time
 	for s, p := range pending {
 		if p.IsSending() {
 			continue
@@ -143,30 +150,30 @@ func (d *Dst) processTimeout(pending map[uint16]*ping.Ping, t *time.Timer, n tim
 			delete(pending, s)
 			continue
 		}
-		if resetS.IsZero() || resetS.After(p.Sent) {
-			resetS = p.Sent
+		if nextTimeout.IsZero() || nextTimeout.After(p.TimeOut) {
+			nextTimeout = p.TimeOut
 		}
 	}
 
-	if !resetS.IsZero() && d.timeout > 0 {
-		resetTimer(t, resetS, d.timeout)
+	if !nextTimeout.IsZero() {
+		resetTimer(t, nextTimeout)
 	}
+	return nextTimeout
 }
 
-func resetTimer(t *time.Timer, s time.Time, d time.Duration) {
+func resetTimer(t *time.Timer, e time.Time) {
 	stopTimer(t)
-	rd := time.Until(s.Add(d))
-	if rd < time.Nanosecond {
-		rd = time.Nanosecond
+	d := time.Until(e)
+	if d < time.Nanosecond {
+		d = time.Nanosecond
 	}
-	t.Reset(rd)
+	t.Reset(d)
 }
 
 func stopTimer(t *time.Timer) {
-	if !t.Stop() {
-		select {
-		case <-t.C:
-		default:
-		}
+	t.Stop()
+	select {
+	case <-t.C:
+	default:
 	}
 }

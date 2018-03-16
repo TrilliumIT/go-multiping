@@ -21,16 +21,19 @@ type Pinger struct {
 	sendType    icmp.Type
 	Conn        *icmp.PacketConn
 	cbLock      sync.RWMutex
+	delLock     sync.Mutex
 	callbacks   map[[18]byte]func(*ping.Ping)
 	expectedLen int
-	closeWait   func() (error, func())
+	closeWait   func() error
+	closing     chan struct{}
 }
 
 // New returns a new pinger
 func New(v int) *Pinger {
 	p := &Pinger{
 		callbacks: make(map[[18]byte]func(*ping.Ping)),
-		closeWait: func() (error, func()) { return nil, func() {} },
+		closeWait: func() error { return nil },
+		closing:   make(chan struct{}),
 	}
 
 	var typ icmp.Type
@@ -85,6 +88,11 @@ func (pp *Pinger) Network() string {
 
 // GetCallback returns the OnRecieve callback for for a given IP and icmp id
 func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*ping.Ping), bool) {
+	select {
+	case <-pp.closing:
+		return nil, false
+	default:
+	}
 	ip = cbIP(ip)
 	k := dstKey(ip, uint16(id))
 	pp.cbLock.RLock()
@@ -138,13 +146,25 @@ func (pp *Pinger) DelCallBack(ip net.IP, id int) error {
 	pLen := len(pp.callbacks)
 	delete(pp.callbacks, k)
 	var err error
-	wait := func() {}
-	if len(pp.callbacks) == 0 && pLen == 1 {
-		close(pp.stop)
-		err, wait = pp.closeWait()
-		pp.closeWait = func() (error, func()) { return nil, func() {} }
+	if !(len(pp.callbacks) == 0 && pLen == 1) {
+		pp.cbLock.Unlock()
+		return nil
 	}
+	closewait := &pp.closeWait
+	stop := &pp.stop
 	pp.cbLock.Unlock()
-	wait()
+
+	pp.delLock.Lock()
+	defer pp.delLock.Unlock()
+	// closewait triggers process which calls getCallback which needs to be able
+	// to rlock. I know nothing else that rlocks writes to pp.closewait, so this is safe
+	pp.cbLock.RLock()
+	defer pp.cbLock.RUnlock()
+	if len(pp.callbacks) != 0 || closewait != &pp.closeWait || stop != &pp.stop {
+		return nil
+	}
+	close(pp.stop)
+	err = pp.closeWait()
+	pp.closeWait = func() error { return nil }
 	return err
 }

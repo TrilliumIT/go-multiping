@@ -174,12 +174,16 @@ func (d *Dst) Run() error {
 	// so the defer is okay
 	delCallback = func() error { return nil }
 
-	d.cbWg.Wait()
+	if d.timeout > 0 {
+		d.cbWg.Wait()
+	}
+
 	select {
 	case <-d.stop:
 	default:
 		d.Stop()
 	}
+	d.cbWg.Wait()
 
 	return err
 }
