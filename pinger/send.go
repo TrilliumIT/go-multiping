@@ -103,8 +103,6 @@ func (d *Dst) Run() error {
 
 	var dst *net.IPAddr
 	var pp *protoPinger.Pinger
-	var delCallback = func() error { return nil }
-	defer func() { _ = delCallback() }()
 	count := -1
 	id := rand.Intn(1<<16 - 1)
 	for range t {
@@ -120,6 +118,9 @@ func (d *Dst) Run() error {
 		if dst == nil || d.reResolve {
 			nDst, nPP, changed, err := d.resolve(dst, pp)
 			if err != nil && !d.reResolve {
+				if pp != nil {
+					_ = pp.DelCallBack(dst.IP, id)
+				}
 				return err
 			}
 			if err != nil {
@@ -131,7 +132,14 @@ func (d *Dst) Run() error {
 				continue
 			}
 			if changed {
-				err := nPP.AddCallBack(nDst.IP, id, d.afterReply)
+				if pp != nil {
+					err = pp.DelCallBack(dst.IP, id)
+					if err != nil {
+						return err
+					}
+					pp = nil
+				}
+				err = nPP.AddCallBack(nDst.IP, id, d.afterReply)
 				if err != nil {
 					if _, ok := err.(*protoPinger.ErrorAlreadyExists); ok {
 						// Try a different ID
@@ -139,13 +147,6 @@ func (d *Dst) Run() error {
 						continue
 					}
 					return err
-				}
-				err = delCallback()
-				if err != nil {
-					return err
-				}
-				delCallback = func() error {
-					return pp.DelCallBack(dst.IP, id)
 				}
 				dst, pp = nDst, nPP
 			}
@@ -169,10 +170,10 @@ func (d *Dst) Run() error {
 	close(d.sending)
 	rWg.Wait()
 
-	// we didn't early return, we should check err from delCallback instead of letting defer handle it
-	err := delCallback()
-	// so the defer is okay
-	delCallback = func() error { return nil }
+	var err error
+	if pp != nil {
+		err = pp.DelCallBack(dst.IP, id)
+	}
 
 	if d.timeout > 0 {
 		d.cbWg.Wait()

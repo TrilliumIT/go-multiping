@@ -1,7 +1,6 @@
 package pinger
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping"
@@ -87,9 +86,6 @@ func (d *Dst) runSend() {
 				if len(pending) == 0 {
 					return
 				}
-
-				fmt.Printf("len pending: %v\n", len(pending))
-				fmt.Printf("next timeout: %v\n", nextTimeout)
 
 				select {
 				case p := <-d.pktCh:
