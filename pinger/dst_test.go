@@ -20,7 +20,7 @@ func checkGoRoutines(t *testing.T, igr int) {
 	gr := runtime.NumGoroutine()
 	if gr > igr {
 		_ = pr.WriteTo(os.Stdout, 1)
-		t.Errorf("leaking goroutines: %v", gr-igr)
+		t.Fatalf("leaking goroutines: %v", gr-igr)
 	}
 }
 
@@ -82,17 +82,7 @@ func testCallbacks(c *cbTest) {
 		}(ip)
 	}
 
-	tok := time.NewTimer(10 * time.Second)
-	done := make(chan struct{})
-	go func() { wg.Wait(); close(done) }()
-	select {
-	case <-done:
-	case <-tok.C:
-		defer os.Exit(1)
-		_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
-		c.t.Fatal("test expired")
-	}
-
+	wg.Wait()
 	if ti != c.count*len(c.ips)*c.countMultiplier {
 		c.t.Errorf("only %v of %v total packets counted", ti, c.count*len(c.ips)*c.countMultiplier)
 	}

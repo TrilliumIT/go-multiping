@@ -72,7 +72,6 @@ func (d *Dst) runSend() {
 			<-t.C
 		}
 		pending := make(map[uint16]*ping.Ping)
-		d.cbWg.Add(1)
 		doneSending := false
 		for {
 			select {
@@ -85,6 +84,10 @@ func (d *Dst) runSend() {
 			}
 
 			if doneSending {
+				if len(pending) == 0 {
+					return
+				}
+
 				select {
 				case p := <-d.pktCh:
 					d.processPkt(pending, p, t)
