@@ -37,20 +37,24 @@ func checkErr(t *testing.T, err error) {
 	}
 }
 
-func testCallbacks(
-	t *testing.T,
-	ips []string,
-	count int,
-	expire time.Duration,
-	setup func(d *Dst, f func(j int)),
-	cb func(p *ping.Ping, e error, f func(j int)),
-	countMultiplier int,
-) {
+type cbTest struct {
+	t               *testing.T
+	ips             []string
+	count           int
+	interval        time.Duration
+	timeout         time.Duration
+	expire          time.Duration
+	setup           func(d *Dst, f func(j int))
+	cb              func(p *ping.Ping, e error, f func(j int))
+	countMultiplier int
+}
+
+func testCallbacks(c *cbTest) {
 	igr := runtime.NumGoroutine()
 	ti := 0
 	addTi := sync.Mutex{}
 	wg := sync.WaitGroup{}
-	for _, ip := range ips {
+	for _, ip := range c.ips {
 		wg.Add(1)
 		go func(ip string) {
 			defer wg.Done()
@@ -62,39 +66,47 @@ func testCallbacks(
 				ti += j
 			}
 			cbw := func(p *ping.Ping, err error) {
-				if cb != nil {
-					cb(p, err, f)
+				if c.cb != nil {
+					c.cb(p, err, f)
 				}
 			}
-			d := NewDst(ip, 100*time.Millisecond, time.Second, count, cbw)
-			if setup != nil {
-				setup(d, f)
+			d := NewDst(ip, c.interval, c.timeout, c.count, cbw)
+			if c.setup != nil {
+				c.setup(d, f)
 			}
-			if expire > 0 {
+			if c.expire > 0 {
 				go func() {
-					time.Sleep(expire)
+					time.Sleep(c.expire)
 					d.Stop()
 				}()
 			}
-			checkErr(t, d.Run())
-			if i != count*countMultiplier {
-				t.Errorf("only %v of %v packets counted for %v", i, count, ip)
+			checkErr(c.t, d.Run())
+			if i != c.count*c.countMultiplier {
+				c.t.Errorf("only %v of %v packets counted for %v", i, c.count, ip)
 			}
 		}(ip)
 	}
 	wg.Wait()
-	if ti != count*len(ips)*countMultiplier {
-		t.Errorf("only %v of %v total packets counted", ti, count*len(ips))
+	if ti != c.count*len(c.ips)*c.countMultiplier {
+		c.t.Errorf("only %v of %v total packets counted", ti, c.count*len(c.ips)*c.countMultiplier)
 	}
 	// this should not be necessary, but I got to figure it out
 	time.Sleep(time.Millisecond)
-	checkGoRoutines(t, igr)
+	checkGoRoutines(c.t, igr)
 }
 
 func TestNoCallbacks(t *testing.T) {
 	ips := []string{"127.0.0.1", "127.0.0.2", "127.0.0.3", "::1", "::1", "::1"}
 	setup := func(d *Dst, f func(int)) {}
-	testCallbacks(t, ips, 4, 0, setup, nil, 0)
+	testCallbacks(&cbTest{
+		t:               t,
+		ips:             ips,
+		count:           4,
+		timeout:         time.Second,
+		interval:        time.Second,
+		countMultiplier: 0,
+		setup:           setup,
+	})
 }
 
 func TestOnReply(t *testing.T) {
@@ -104,7 +116,15 @@ func TestOnReply(t *testing.T) {
 			f(1)
 		}
 	}
-	testCallbacks(t, ips, 4, 0, nil, cb, 1)
+	testCallbacks(&cbTest{
+		t:               t,
+		ips:             ips,
+		count:           4,
+		timeout:         time.Second,
+		interval:        time.Second,
+		countMultiplier: 1,
+		cb:              cb,
+	})
 }
 
 func TestOnReplyExpire(t *testing.T) {
@@ -116,7 +136,16 @@ func TestOnReplyExpire(t *testing.T) {
 		}
 		//f(1)
 	}
-	testCallbacks(t, ips, 0, 5*time.Second, nil, cb, 0)
+	testCallbacks(&cbTest{
+		t:               t,
+		ips:             ips,
+		count:           0,
+		timeout:         time.Second,
+		interval:        time.Millisecond,
+		expire:          5 * time.Second,
+		countMultiplier: 0,
+		cb:              cb,
+	})
 }
 
 func TestOnTimeout(t *testing.T) {
@@ -129,7 +158,15 @@ func TestOnTimeout(t *testing.T) {
 			f(100)
 		}
 	}
-	testCallbacks(t, ips, 4, 0, nil, cb, 1)
+	testCallbacks(&cbTest{
+		t:               t,
+		ips:             ips,
+		count:           4,
+		timeout:         time.Second,
+		interval:        time.Second,
+		countMultiplier: 1,
+		cb:              cb,
+	})
 }
 
 func TestOnResolveError(t *testing.T) {
@@ -145,7 +182,16 @@ func TestOnResolveError(t *testing.T) {
 		d.EnableReResolve()
 		fmt.Printf("Reresolve enabled: %v\n", d.reResolve)
 	}
-	testCallbacks(t, ips, 4, 0, setup, cb, 1)
+	testCallbacks(&cbTest{
+		t:               t,
+		ips:             ips,
+		count:           4,
+		timeout:         time.Second,
+		interval:        time.Second,
+		countMultiplier: 1,
+		setup:           setup,
+		cb:              cb,
+	})
 }
 
 func MultiValid(t *testing.T) {
@@ -163,7 +209,16 @@ func MultiValid(t *testing.T) {
 		d.EnableReResolve()
 		d.EnableReSend()
 	}
-	testCallbacks(t, ips, 4, 0, setup, cb, 2)
+	testCallbacks(&cbTest{
+		t:               t,
+		ips:             ips,
+		count:           4,
+		timeout:         time.Second,
+		interval:        time.Second,
+		countMultiplier: 2,
+		setup:           setup,
+		cb:              cb,
+	})
 }
 
 // nolint:dupl
@@ -182,7 +237,16 @@ func MultiResolveError(t *testing.T) {
 		d.EnableReResolve()
 		d.EnableReSend()
 	}
-	testCallbacks(t, ips, 4, 0, setup, cb, 2)
+	testCallbacks(&cbTest{
+		t:               t,
+		ips:             ips,
+		count:           4,
+		timeout:         time.Second,
+		interval:        time.Second,
+		countMultiplier: 2,
+		setup:           setup,
+		cb:              cb,
+	})
 }
 
 // nolint:dupl
@@ -201,5 +265,14 @@ func MultiSendError(t *testing.T) {
 		d.EnableReResolve()
 		d.EnableReSend()
 	}
-	testCallbacks(t, ips, 4, 0, setup, cb, 2)
+	testCallbacks(&cbTest{
+		t:               t,
+		ips:             ips,
+		count:           4,
+		timeout:         time.Second,
+		interval:        time.Second,
+		countMultiplier: 2,
+		setup:           setup,
+		cb:              cb,
+	})
 }

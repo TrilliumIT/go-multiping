@@ -29,6 +29,7 @@ type Dst struct {
 	sending chan struct{}
 	cbWg    sync.WaitGroup
 	pktCh   chan *pkt
+	fpCh    chan struct{}
 }
 
 // NewDst creates a Dst
@@ -37,6 +38,13 @@ func NewDst(host string, interval, timeout time.Duration, count int, callBack fu
 }
 
 // NewDst creates a Dst
+// if count is zero, ping will run until stopped
+// if interval is zero, ping will run as fast as possible
+// sending an new packet each time the previous one is recieved or timed out
+//
+// if timeout is zero, there will be no timeout and the pinger will wait
+// forever for returning packets. If any packets are dropped, Run() will block
+// until Stop() is called.
 func (p *Pinger) NewDst(host string, interval, timeout time.Duration, count int, callBack func(*ping.Ping, error)) *Dst {
 	return &Dst{
 		host:     host,

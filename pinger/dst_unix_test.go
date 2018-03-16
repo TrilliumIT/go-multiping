@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping"
 )
@@ -27,5 +28,14 @@ func TestOnSendError(t *testing.T) {
 	setup := func(d *Dst, f func(j int)) {
 		d.EnableReSend()
 	}
-	testCallbacks(t, ips, 4, 0, setup, cb, 1)
+	testCallbacks(&cbTest{
+		t:               t,
+		ips:             ips,
+		count:           4,
+		timeout:         time.Second,
+		interval:        time.Second,
+		countMultiplier: 1,
+		setup:           setup,
+		cb:              cb,
+	})
 }

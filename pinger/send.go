@@ -18,9 +18,19 @@ func init() {
 func (d *Dst) Run() error {
 	d.sending = make(chan struct{})
 
-	buf := 2 * (d.timeout.Nanoseconds() / d.interval.Nanoseconds())
+	buf := d.timeout.Nanoseconds()
+	if d.interval > 0 {
+		buf = 2 * (d.timeout.Nanoseconds() / d.interval.Nanoseconds())
+	}
 	if buf < 2 {
 		buf = 2
+	}
+	if buf > 1<<16-1 {
+		buf = 1<<16 - 1
+	}
+
+	if d.interval == 0 {
+		d.fpCh = make(chan struct{}, buf)
 	}
 	d.pktCh = make(chan *pkt, buf)
 	d.runSend()
@@ -42,6 +52,26 @@ func (d *Dst) Run() error {
 			return
 		}
 		ft.Stop()
+
+		if d.interval == 0 {
+			for {
+				select {
+				case <-d.fpCh:
+					select {
+					case t <- struct{}{}:
+						continue
+					case <-d.stop:
+						return
+					case <-d.sending:
+						return
+					}
+				case <-d.stop:
+					return
+				case <-d.sending:
+					return
+				}
+			}
+		}
 
 		ti := time.NewTicker(d.interval)
 		defer close(t)

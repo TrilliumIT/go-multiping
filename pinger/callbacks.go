@@ -7,7 +7,11 @@ import (
 )
 
 func (d *Dst) afterReply(p *ping.Ping) {
-	p.TimeOut = p.Sent.Add(d.timeout)
+	d.cbWg.Add(1)
+	defer d.cbWg.Done()
+	if d.timeout > 0 {
+		p.TimeOut = p.Sent.Add(d.timeout)
+	}
 	d.pktCh <- &pkt{p, false}
 	if !p.Sent.Add(d.timeout).Before(p.Recieved) {
 		if d.callBack != nil {
@@ -130,7 +134,7 @@ func (d *Dst) processPkt(pending map[uint16]*ping.Ping, p *pkt, t *time.Timer) {
 func (d *Dst) processTimeout(pending map[uint16]*ping.Ping, t *time.Timer, n time.Time) {
 	var resetS time.Time
 	for s, p := range pending {
-		if p.Sent.Add(d.timeout).Before(n) {
+		if p.TimeOut.Before(n) {
 			d.afterTimeout(p)
 			delete(pending, s)
 			continue
@@ -140,7 +144,7 @@ func (d *Dst) processTimeout(pending map[uint16]*ping.Ping, t *time.Timer, n tim
 		}
 	}
 
-	if !resetS.IsZero() {
+	if !resetS.IsZero() && d.timeout > 0 {
 		resetTimer(t, resetS, d.timeout)
 	}
 }
