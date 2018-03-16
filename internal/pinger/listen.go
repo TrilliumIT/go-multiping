@@ -7,10 +7,10 @@ import (
 	"golang.org/x/net/icmp"
 )
 
-func (p *Pinger) listen() (func() error, error) {
+func (p *Pinger) listen() (func() (error, func()), error) {
 	var err error
 	var wg sync.WaitGroup
-	retF := func() error { return nil }
+	retF := func() (error, func()) { return nil, func() {} }
 
 	p.Conn, err = icmp.ListenPacket(p.network, p.src)
 	if err != nil {
@@ -35,12 +35,7 @@ func (p *Pinger) listen() (func() error, error) {
 		ech <- p.Conn.Close()
 	}()
 
-	retF = func() error {
-		err := <-ech
-		wg.Wait()
-		return err
-	}
-
+	pwg := sync.WaitGroup{}
 	wg.Add(1)
 	swg.Add(1)
 	go func() {
@@ -59,10 +54,20 @@ func (p *Pinger) listen() (func() error, error) {
 					continue
 				}
 				r.recieved = time.Now()
-				go p.processMessage(r)
+				pwg.Add(1)
+				go func() {
+					p.processMessage(r)
+					pwg.Done()
+				}()
 			}
 		}
 	}()
+
+	retF = func() (error, func()) {
+		err := <-ech
+		wg.Wait()
+		return err, pwg.Wait
+	}
 
 	swg.Wait()
 	return retF, nil

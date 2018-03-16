@@ -23,14 +23,14 @@ type Pinger struct {
 	cbLock      sync.RWMutex
 	callbacks   map[[18]byte]func(*ping.Ping)
 	expectedLen int
-	closeWait   func() error
+	closeWait   func() (error, func())
 }
 
 // New returns a new pinger
 func New(v int) *Pinger {
 	p := &Pinger{
 		callbacks: make(map[[18]byte]func(*ping.Ping)),
-		closeWait: func() error { return nil },
+		closeWait: func() (error, func()) { return nil, func() {} },
 	}
 
 	var typ icmp.Type
@@ -135,13 +135,16 @@ func (pp *Pinger) DelCallBack(ip net.IP, id int) error {
 	ip = cbIP(ip)
 	k := dstKey(ip, uint16(id))
 	pp.cbLock.Lock()
-	defer pp.cbLock.Unlock()
+	pLen := len(pp.callbacks)
 	delete(pp.callbacks, k)
 	var err error
-	if len(pp.callbacks) == 0 {
+	wait := func() {}
+	if len(pp.callbacks) == 0 && pLen == 1 {
 		close(pp.stop)
-		err = pp.closeWait()
-		pp.closeWait = func() error { return nil }
+		err, wait = pp.closeWait()
+		pp.closeWait = func() (error, func()) { return nil, func() {} }
 	}
+	pp.cbLock.Unlock()
+	wait()
 	return err
 }

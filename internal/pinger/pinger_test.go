@@ -215,7 +215,9 @@ func TestListenFailure(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for listen with invalid src/network combination")
 	}
-	if f() != nil {
+	err, wait := f()
+	if err != nil {
 		t.Errorf("expected nil error from f")
 	}
+	wait()
 }

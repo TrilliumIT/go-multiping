@@ -3,6 +3,7 @@ package pinger
 import (
 	"math/rand"
 	"net"
+	"sync"
 	"time"
 
 	protoPinger "github.com/TrilliumIT/go-multiping/internal/pinger"
@@ -33,7 +34,12 @@ func (d *Dst) Run() error {
 		d.fpCh = make(chan struct{}, buf)
 	}
 	d.pktCh = make(chan *pkt, buf)
-	d.runSend()
+	rWg := sync.WaitGroup{}
+	rWg.Add(1)
+	go func() {
+		d.runSend()
+		rWg.Done()
+	}()
 
 	t := make(chan struct{})
 	d.cbWg.Add(1)
@@ -161,6 +167,13 @@ func (d *Dst) Run() error {
 	}
 
 	close(d.sending)
+	rWg.Wait()
+
+	// we didn't early return, we should check err from delCallback instead of letting defer handle it
+	err := delCallback()
+	// so the defer is okay
+	delCallback = func() error { return nil }
+
 	d.cbWg.Wait()
 	select {
 	case <-d.stop:
@@ -168,10 +181,6 @@ func (d *Dst) Run() error {
 		d.Stop()
 	}
 
-	// we didn't early return, we should check err from delCallback instead of letting defer handle it
-	err := delCallback()
-	// so the defer is okay
-	delCallback = func() error { return nil }
 	return err
 }
 
