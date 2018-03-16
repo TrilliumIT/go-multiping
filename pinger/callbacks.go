@@ -134,6 +134,9 @@ func (d *Dst) processPkt(pending map[uint16]*ping.Ping, p *pkt, t *time.Timer) {
 func (d *Dst) processTimeout(pending map[uint16]*ping.Ping, t *time.Timer, n time.Time) {
 	var resetS time.Time
 	for s, p := range pending {
+		if p.IsSending() {
+			continue
+		}
 		if p.TimeOut.Before(n) {
 			d.afterTimeout(p)
 			delete(pending, s)

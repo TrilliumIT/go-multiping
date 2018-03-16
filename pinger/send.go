@@ -145,6 +145,7 @@ func (d *Dst) Run() error {
 			}
 		}
 		sp.Dst = dst.IP
+		sp.SendPending = make(chan struct{})
 		d.beforeSend(sp)
 		err := pp.Send(dst, sp, d.timeout)
 		if err != nil {
@@ -155,6 +156,7 @@ func (d *Dst) Run() error {
 			}
 			continue
 		}
+		close(sp.SendPending)
 		d.afterSend(sp)
 	}
 

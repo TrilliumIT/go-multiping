@@ -47,6 +47,21 @@ type Ping struct {
 	TTL int
 	// Len is the length of the recieved packet
 	Len int
+
+	// SendPening is open when a send is pending, but not yet succeeded
+	SendPending chan struct{}
+}
+
+func (p *Ping) IsSending() bool {
+	if p.SendPending == nil {
+		return false
+	}
+	select {
+	case <-p.SendPending:
+		return false
+	default:
+	}
+	return true
 }
 
 func (p *Ping) IsTimedOut() bool {

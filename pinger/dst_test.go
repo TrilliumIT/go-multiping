@@ -61,9 +61,9 @@ func testCallbacks(c *cbTest) {
 			i := 0
 			f := func(j int) {
 				addTi.Lock()
-				defer addTi.Unlock()
 				i += j
 				ti += j
+				addTi.Unlock()
 			}
 			cbw := func(p *ping.Ping, err error) {
 				if c.cb != nil {
@@ -81,9 +81,11 @@ func testCallbacks(c *cbTest) {
 				}()
 			}
 			checkErr(c.t, d.Run())
+			addTi.Lock()
 			if i != c.count*c.countMultiplier {
 				c.t.Errorf("only %v of %v packets counted for %v", i, c.count, ip)
 			}
+			addTi.Unlock()
 		}(ip)
 	}
 	wg.Wait()
