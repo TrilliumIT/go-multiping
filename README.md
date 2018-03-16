@@ -25,20 +25,29 @@ import (
 )
 
 func main() {
-	onReply := func(pkt *packet.Packet) {
-		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT, pkt.TTL, pkt.Seq, pkt.ID)
-	}
-
-	onTimeout := func(pkt *packet.Packet) {
-		fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+	callBack := func(pkt *ping.Ping, err error) {
+		if err != nil {
+			fmt.Printf("Packet errored from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+			return
+		}
+		if pkt.IsRecieved() && !pkt.IsTimedOut() {
+			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
+			return
+		}
+		if pkt.IsTimedOut() {
+			fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+		}
 	}
 
 	var wg sync.WaitGroup
 	for _, h := range flag.Args() {
-		d := pinger.NewDst(h, 4, time.Second, time.Second)
+		d := pinger.NewDst(h, 4, time.Second, time.Second, callBack)
 		wg.Add(1)
 		go func() {
-			d.Run()
+			err := d.Run()
+			if err != nil {
+				panic(err)
+			}
 			wg.Done()
 		}
 	}
