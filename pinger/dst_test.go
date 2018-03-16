@@ -13,14 +13,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
-func TestMain(m *testing.M) {
-	go func() {
-		time.Sleep(60 * time.Second)
-		_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
-		panic("die")
-	}()
-	os.Exit(m.Run())
-}
+var killMe chan struct{}
 
 func checkGoRoutines(t *testing.T, igr int) {
 	pr := pprof.Lookup("goroutine")
@@ -88,12 +81,24 @@ func testCallbacks(c *cbTest) {
 			addTi.Unlock()
 		}(ip)
 	}
-	wg.Wait()
+
+	tok := time.NewTimer(10 * time.Second)
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-tok.C:
+		defer os.Exit(1)
+		_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		c.t.Fatal("test expired")
+	}
+
 	if ti != c.count*len(c.ips)*c.countMultiplier {
 		c.t.Errorf("only %v of %v total packets counted", ti, c.count*len(c.ips)*c.countMultiplier)
 	}
 	// this should not be necessary, but I got to figure it out
 	time.Sleep(time.Millisecond)
+
 	checkGoRoutines(c.t, igr)
 }
 
