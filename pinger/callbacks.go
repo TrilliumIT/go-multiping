@@ -72,13 +72,8 @@ func (d *Dst) runSend() {
 			<-t.C
 		}
 		pending := make(map[uint16]*ping.Ping)
-		sendingTrigger := make(chan struct{}, 1)
 		d.cbWg.Add(1)
-		go func() {
-			<-d.sending
-			sendingTrigger <- struct{}{}
-			d.cbWg.Done()
-		}()
+		doneSending := false
 		for {
 			select {
 			case p := <-d.pktCh:
@@ -89,12 +84,16 @@ func (d *Dst) runSend() {
 			default:
 			}
 
-			select {
-			case <-d.sending:
-				if len(pending) == 0 {
+			if doneSending {
+				select {
+				case p := <-d.pktCh:
+					d.processPkt(pending, p, t)
+					continue
+				case n := <-t.C:
+					d.processTimeout(pending, t, n)
+				case <-d.stop:
 					return
 				}
-			default:
 			}
 
 			select {
@@ -103,7 +102,8 @@ func (d *Dst) runSend() {
 				continue
 			case n := <-t.C:
 				d.processTimeout(pending, t, n)
-			case <-sendingTrigger:
+			case <-d.sending:
+				doneSending = true
 				continue
 			case <-d.stop:
 				return
