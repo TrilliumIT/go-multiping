@@ -2,26 +2,31 @@ package pinger
 
 import (
 	"context"
-	"sync"
 )
+
+func init() {
+	pingerCreated = make(chan struct{})
+}
 
 type Pinger struct {
 	ctx context.Context
 }
 
 var pinger *Pinger
-var pingerLock sync.Mutex
+var pingerCreated chan struct{}
 
 func Default() *Pinger {
-	pingerLock.Lock()
-	defer pingerLock.Unlock()
-	if pinger == nil {
-		pinger = New()
+	select {
+	case <-pingerCreated:
+		return pinger
+	default:
 	}
+	pinger = NewPinger()
+	close(pingerCreated)
 	return pinger
 }
 
-func New() *Pinger {
+func NewPinger() *Pinger {
 	return WithContext(context.Background())
 }
 
