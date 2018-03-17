@@ -1,6 +1,6 @@
 // +build darwin dragonfly freebsd linux netbsd openbsd solaris
 
-package pinger
+package listener
 
 import (
 	"fmt"
