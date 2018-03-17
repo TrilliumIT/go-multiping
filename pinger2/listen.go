@@ -76,6 +76,7 @@ func (l *listener) run() error {
 	go func() {
 		defer close(l.dead)
 	}()
+	return nil
 }
 
 func (l *listenMap) getL(ip net.IP) *listener {
@@ -105,7 +106,7 @@ func (lm *listenMap) add(ip net.IP, id int, s *lmE) error {
 		l.wg.Done()
 	}()
 
-	if r.running() {
+	if l.running() {
 		return nil
 	}
 
