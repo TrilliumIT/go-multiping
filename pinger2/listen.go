@@ -6,6 +6,8 @@ import (
 	"net"
 	"sync"
 
+	"golang.org/x/net/icmp"
+
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
@@ -43,14 +45,38 @@ type listenMap struct {
 }
 
 type listener struct {
-	proto   int
-	l       sync.RWMutex
-	running bool
-	wg      sync.WaitGroup
-	ctx     context.Context
+	proto int
+	l     sync.RWMutex
+	dead  chan struct{}
+	wg    sync.WaitGroup
+	ctx   context.Context
+	conn  *icmp.PacketConn
 }
 
-func (l *listener) run() {}
+func (l *listener) running() bool {
+	l.l.RLock()
+	r := l.usRunning()
+	l.l.RUnlock()
+	return r
+}
+
+func (l *listener) usRunning() bool {
+	select {
+	case <-l.dead:
+		return false
+	default:
+	}
+	return true
+}
+
+func (l *listener) run() error {
+	l.dead = make(chan struct{})
+	var err error
+
+	go func() {
+		defer close(l.dead)
+	}()
+}
 
 func (l *listenMap) getL(ip net.IP) *listener {
 	if ip.To4() != nil {
@@ -79,20 +105,16 @@ func (lm *listenMap) add(ip net.IP, id int, s *lmE) error {
 		l.wg.Done()
 	}()
 
-	l.l.RLock()
-	r := l.running
-	l.l.RUnlock()
-	if r {
+	if r.running() {
 		return nil
 	}
 
 	l.l.Lock()
-	if l.running {
+	if l.usRunning() {
 		l.l.Unlock()
 		return nil
 	}
 
-	l.running = true
 	var cancel func()
 	l.ctx, cancel = context.WithCancel(lm.ctx)
 	l.run()
@@ -100,7 +122,10 @@ func (lm *listenMap) add(ip net.IP, id int, s *lmE) error {
 
 	go func() {
 		l.wg.Wait()
+		l.l.Lock()
 		cancel()
+		<-l.dead
+		l.l.Unlock()
 	}()
 	return nil
 }
