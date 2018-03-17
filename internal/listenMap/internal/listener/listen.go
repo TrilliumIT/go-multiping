@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/net/icmp"
 
-	"github.com/TrilliumIT/go-multiping/internal/messages"
-	"github.com/TrilliumIT/go-multiping/internal/process"
+	"github.com/TrilliumIT/go-multiping/internal/listenMap/internal/messages"
+	"github.com/TrilliumIT/go-multiping/internal/listenMap/internal/process"
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
