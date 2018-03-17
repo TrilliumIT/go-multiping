@@ -9,11 +9,8 @@ import (
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
-)
 
-const (
-	v4AddLen = 0
-	v6AddLen = 0
+	"github.com/TrilliumIT/go-multiping/internal/messages"
 )
 
 func setPacketCon(c *icmp.PacketConn) error {
@@ -29,13 +26,13 @@ func setPacketCon(c *icmp.PacketConn) error {
 	return err
 }
 
-func readPacket(c *icmp.PacketConn, r *recvMsg) error {
+func readPacket(c *icmp.PacketConn, r *messages.RecvMsg) error {
 	var err error
 	switch {
 	case c.IPv4PacketConn() != nil:
-		r.payloadLen, r.v4cm, _, err = c.IPv4PacketConn().ReadFrom(r.payload)
+		r.PayloadLen, r.V4cm, _, err = c.IPv4PacketConn().ReadFrom(r.Payload)
 	case c.IPv6PacketConn() != nil:
-		r.payloadLen, r.v6cm, _, err = c.IPv6PacketConn().ReadFrom(r.payload)
+		r.PayloadLen, r.V6cm, _, err = c.IPv6PacketConn().ReadFrom(r.Payload)
 	}
 	return err
 }

@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/net/icmp"
 
+	"github.com/TrilliumIT/go-multiping/internal/messages"
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
@@ -32,8 +33,8 @@ func newListenMap(ctx context.Context) *listenMap {
 	return &listenMap{
 		ctx: ctx,
 		m:   make(map[lmI]*lmE),
-		v4l: &listener{proto: 4, props: v4Props},
-		v6l: &listener{proto: 6, props: v6Props},
+		v4l: &listener{proto: 4, props: messages.V4Props},
+		v6l: &listener{proto: 6, props: messages.V6Props},
 	}
 }
 
@@ -52,7 +53,7 @@ type listener struct {
 	wg    sync.WaitGroup
 	ctx   context.Context
 	conn  *icmp.PacketConn
-	props *props
+	props *messages.Props
 }
 
 func (l *listener) running() bool {
@@ -74,7 +75,7 @@ func (l *listener) usRunning() bool {
 func (l *listener) run(lm *listenMap) error {
 	l.dead = make(chan struct{})
 	var err error
-	l.conn, err = icmp.ListenPacket(l.props.network, l.props.src)
+	l.conn, err = icmp.ListenPacket(l.props.Network, l.props.Src)
 	if err != nil {
 		return err
 	}
@@ -92,14 +93,14 @@ func (l *listener) run(lm *listenMap) error {
 				return
 			default:
 			}
-			r := &recvMsg{
-				payload: make([]byte, l.props.expectedLen),
+			r := &messages.RecvMsg{
+				Payload: make([]byte, l.props.ExpectedLen),
 			}
 			err := readPacket(l.conn, r)
 			if err != nil {
 				continue
 			}
-			r.recieved = time.Now()
+			r.Recieved = time.Now()
 			go processMessage(l.ctx, lm, r)
 		}
 	}()

@@ -2,53 +2,30 @@ package pinger
 
 import (
 	"context"
-	"time"
 
 	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv4"
-	"golang.org/x/net/ipv6"
 
+	"github.com/TrilliumIT/go-multiping/internal/messages"
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
-type recvMsg struct {
-	v4cm       *ipv4.ControlMessage
-	v6cm       *ipv6.ControlMessage
-	recieved   time.Time
-	payload    []byte
-	payloadLen int
-}
-
-func processMessage(ctx context.Context, lm *listenMap, r *recvMsg) {
+func processMessage(ctx context.Context, lm *listenMap, r *messages.RecvMsg) {
 	var proto int
 	var typ icmp.Type
 	p := &ping.Ping{}
-	p.Recieved = r.recieved
-	if r.v4cm != nil {
-		p.Dst = r.v4cm.Src
-		p.Src = r.v4cm.Dst
-		p.TTL = r.v4cm.TTL
-		proto = ping.ProtocolICMP
-		typ = ipv4.ICMPTypeEchoReply
-	}
-	if r.v6cm != nil {
-		p.Dst = r.v6cm.Src
-		p.Src = r.v6cm.Dst
-		p.TTL = r.v6cm.HopLimit
-		proto = ping.ProtocolIPv6ICMP
-		typ = ipv6.ICMPTypeEchoReply
-	}
+	p.Recieved = r.Recieved
+	p.Dst, p.Src, p.TTL, proto, typ = r.Props()
 	if p.Dst == nil {
 		return
 	}
 
-	if len(r.payload) < r.payloadLen {
+	if len(r.Payload) < r.PayloadLen {
 		return
 	}
 
 	var m *icmp.Message
 	var err error
-	m, err = icmp.ParseMessage(proto, r.payload[:r.payloadLen])
+	m, err = icmp.ParseMessage(proto, r.Payload[:r.PayloadLen])
 	if err != nil {
 		return
 	}
@@ -81,7 +58,7 @@ func processMessage(ctx context.Context, lm *listenMap, r *recvMsg) {
 		return
 	}
 
-	p.Len = r.payloadLen
+	p.Len = r.PayloadLen
 
 	lme.cb(ctx, p)
 }
