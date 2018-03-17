@@ -1,6 +1,7 @@
 package pinger
 
 import (
+	"context"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -18,7 +19,7 @@ type recvMsg struct {
 	payloadLen int
 }
 
-func (pp *Pinger) processMessage(r *recvMsg) {
+func processMessage(ctx context.Context, lm *listenMap, r *recvMsg) {
 	var proto int
 	var typ icmp.Type
 	p := &ping.Ping{}
@@ -67,16 +68,20 @@ func (pp *Pinger) processMessage(r *recvMsg) {
 		return
 	}
 
-	cb, ok := pp.GetCallback(p.Dst, p.ID)
+	lme, ok := lm.get(p.Dst, p.ID)
 	if !ok {
 		return
 	}
 
-	if cb == nil {
+	if lme == nil {
+		return
+	}
+
+	if lme.cb == nil {
 		return
 	}
 
 	p.Len = r.payloadLen
 
-	cb(p)
+	lme.cb(ctx, p)
 }

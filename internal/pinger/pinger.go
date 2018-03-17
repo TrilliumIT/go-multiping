@@ -1,174 +1,33 @@
 package pinger
 
 import (
-	"encoding/binary"
-	"fmt"
-	"net"
+	"context"
 	"sync"
-
-	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv4"
-	"golang.org/x/net/ipv6"
-
-	"github.com/TrilliumIT/go-multiping/ping"
 )
 
-// Pinger is a protocol specific pinger, either ipv4 or ipv6
 type Pinger struct {
-	stop        chan struct{}
-	network     string
-	src         string
-	sendType    icmp.Type
-	Conn        *icmp.PacketConn
-	cbLock      sync.RWMutex
-	delLock     sync.Mutex
-	callbacks   map[[18]byte]func(*ping.Ping)
-	expectedLen int
-	closeWait   func() error
-	closing     chan struct{}
+	ctx context.Context
 }
 
-// New returns a new pinger
-func New(v int) *Pinger {
+var pinger *Pinger
+var pingerLock sync.Mutex
+
+func Default() *Pinger {
+	pingerLock.Lock()
+	defer pingerLock.Unlock()
+	if pinger == nil {
+		pinger = New()
+	}
+	return pinger
+}
+
+func New() *Pinger {
+	return WithContext(context.Background())
+}
+
+func WithContext(ctx context.Context) *Pinger {
 	p := &Pinger{
-		callbacks: make(map[[18]byte]func(*ping.Ping)),
-		closeWait: func() error { return nil },
-		closing:   make(chan struct{}),
+		ctx: ctx,
 	}
-
-	var typ icmp.Type
-	var addLen int
-	switch {
-	case v == 4:
-		p.network = "ip4:icmp"
-		p.src = "0.0.0.0"
-		p.sendType = ipv4.ICMPTypeEcho
-		typ = ipv4.ICMPTypeEcho
-		addLen = v4AddLen
-	case v == 6:
-		p.network = "ip6:ipv6-icmp"
-		p.src = "::"
-		p.sendType = ipv6.ICMPTypeEchoRequest
-		typ = ipv6.ICMPTypeEchoReply
-		addLen = v6AddLen
-	default:
-		panic("invalid pinger type")
-	}
-
-	if m, err := (&icmp.Message{
-		Type: typ,
-		Body: &icmp.Echo{
-			Data: make([]byte, ping.TimeSliceLength),
-		},
-	}).Marshal(nil); err == nil {
-		p.expectedLen = len(m) + addLen
-	} else {
-		return nil
-	}
-
 	return p
-}
-
-func dstKey(ip net.IP, id uint16) [18]byte {
-	var r [18]byte
-	copy(r[0:16], ip.To16())
-	binary.LittleEndian.PutUint16(r[16:], id)
-	return r
-}
-
-// SendType returns the icmp.Type for the given protocol
-func (pp *Pinger) SendType() icmp.Type {
-	return pp.sendType
-}
-
-// Network returns the name of the network
-func (pp *Pinger) Network() string {
-	return pp.network
-}
-
-// GetCallback returns the OnRecieve callback for for a given IP and icmp id
-func (pp *Pinger) GetCallback(ip net.IP, id int) (func(*ping.Ping), bool) {
-	select {
-	case <-pp.closing:
-		return nil, false
-	default:
-	}
-	ip = cbIP(ip)
-	k := dstKey(ip, uint16(id))
-	pp.cbLock.RLock()
-	defer pp.cbLock.RUnlock()
-	v, ok := pp.callbacks[k]
-	return v, ok
-}
-
-// ErrorAlreadyExists is returned if a callback already exists.
-// Used to detect icmp ID conflicts
-type ErrorAlreadyExists struct{}
-
-func (e *ErrorAlreadyExists) Error() string {
-	return "callback already exists"
-}
-
-// AddCallBack adds an OnRecieve callback for a given IP and icmp id
-// This implicitly starts the listening for these packets
-func (pp *Pinger) AddCallBack(ip net.IP, id int, cb func(*ping.Ping)) error {
-	ip = cbIP(ip)
-	if ip == nil {
-		return fmt.Errorf("invalid ip")
-	}
-	if cb == nil {
-		return fmt.Errorf("invalid callback")
-	}
-	k := dstKey(ip, uint16(id))
-	pp.cbLock.Lock()
-	defer pp.cbLock.Unlock()
-	if _, ok := pp.callbacks[k]; ok {
-		return &ErrorAlreadyExists{}
-	}
-	pp.callbacks[k] = cb
-	if len(pp.callbacks) > 1 {
-		return nil
-	}
-	pp.delLock.Lock()
-	defer pp.delLock.Unlock()
-	pp.stop = make(chan struct{})
-	var err error
-	pp.closeWait, err = pp.listen()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// DelCallBack deletes a callback for a given IP and icmp id
-// This stops listening for these packets
-func (pp *Pinger) DelCallBack(ip net.IP, id int) error {
-	ip = cbIP(ip)
-	k := dstKey(ip, uint16(id))
-	pp.cbLock.Lock()
-	pLen := len(pp.callbacks)
-	delete(pp.callbacks, k)
-	var err error
-	if !(len(pp.callbacks) == 0 && pLen == 1) {
-		pp.cbLock.Unlock()
-		return nil
-	}
-	closewait := &pp.closeWait
-	stop := &pp.stop
-
-	pp.delLock.Lock()
-	defer pp.delLock.Unlock()
-
-	pp.cbLock.Unlock()
-	// closewait triggers process which calls getCallback which needs to be able
-	// to rlock. I know nothing else that rlocks writes to pp.closewait, so this is safe
-	pp.cbLock.RLock()
-	defer pp.cbLock.RUnlock()
-	if len(pp.callbacks) != 0 || closewait != &pp.closeWait || stop != &pp.stop {
-		return nil
-	}
-	close(pp.stop)
-	err = pp.closeWait()
-	pp.closeWait = func() error { return nil }
-	return err
 }
