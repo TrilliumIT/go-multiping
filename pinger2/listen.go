@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"net"
 	"sync"
+	"time"
 
 	"golang.org/x/net/icmp"
 
@@ -16,7 +17,7 @@ type lmI [18]byte
 
 // listen map entry
 type lmE struct {
-	cb  func(*ping.Ping)
+	cb  func(context.Context, *ping.Ping)
 	ctx context.Context
 }
 
@@ -31,8 +32,8 @@ func newListenMap(ctx context.Context) *listenMap {
 	return &listenMap{
 		ctx: ctx,
 		m:   make(map[lmI]*lmE),
-		v4l: &listener{proto: 4},
-		v6l: &listener{proto: 6},
+		v4l: &listener{proto: 4, props: v4Props},
+		v6l: &listener{proto: 6, props: v6Props},
 	}
 }
 
@@ -51,6 +52,7 @@ type listener struct {
 	wg    sync.WaitGroup
 	ctx   context.Context
 	conn  *icmp.PacketConn
+	props *props
 }
 
 func (l *listener) running() bool {
@@ -69,12 +71,37 @@ func (l *listener) usRunning() bool {
 	return true
 }
 
-func (l *listener) run() error {
+func (l *listener) run(lm *listenMap) error {
 	l.dead = make(chan struct{})
 	var err error
+	l.conn, err = icmp.ListenPacket(l.props.network, l.props.src)
+	if err != nil {
+		return err
+	}
+	err = setPacketCon(l.conn)
+	if err != nil {
+		_ = l.conn.Close()
+		return err
+	}
 
 	go func() {
 		defer close(l.dead)
+		for {
+			select {
+			case <-l.ctx.Done():
+				return
+			default:
+			}
+			r := &recvMsg{
+				payload: make([]byte, l.props.expectedLen),
+			}
+			err := readPacket(l.conn, r)
+			if err != nil {
+				continue
+			}
+			r.recieved = time.Now()
+			go processMessage(l.ctx, lm, r)
+		}
 	}()
 	return nil
 }
@@ -118,12 +145,16 @@ func (lm *listenMap) add(ip net.IP, id int, s *lmE) error {
 
 	var cancel func()
 	l.ctx, cancel = context.WithCancel(lm.ctx)
-	l.run()
+	err = l.run(lm)
 	l.l.Unlock()
+	if err != nil {
+		return err
+	}
 
 	go func() {
 		l.wg.Wait()
 		l.l.Lock()
+		_ = l.conn.Close()
 		cancel()
 		<-l.dead
 		l.l.Unlock()
