@@ -1,7 +1,8 @@
-package pinger
+package process
 
 import (
 	"context"
+	"net"
 
 	"golang.org/x/net/icmp"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
-func processMessage(ctx context.Context, lm *listenMap, r *messages.RecvMsg) {
+func ProcessMessage(ctx context.Context, r *messages.RecvMsg, getCb func(net.IP, int) func(context.Context, *ping.Ping)) {
 	var proto int
 	var typ icmp.Type
 	p := &ping.Ping{}
@@ -45,20 +46,12 @@ func processMessage(ctx context.Context, lm *listenMap, r *messages.RecvMsg) {
 		return
 	}
 
-	lme, ok := lm.get(p.Dst, p.ID)
-	if !ok {
-		return
-	}
-
-	if lme == nil {
-		return
-	}
-
-	if lme.cb == nil {
-		return
-	}
-
 	p.Len = r.PayloadLen
 
-	lme.cb(ctx, p)
+	cb := getCb(p.Dst, p.ID)
+	if cb == nil {
+		return
+	}
+
+	cb(ctx, p)
 }

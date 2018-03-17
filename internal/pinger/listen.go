@@ -10,6 +10,7 @@ import (
 	"golang.org/x/net/icmp"
 
 	"github.com/TrilliumIT/go-multiping/internal/messages"
+	"github.com/TrilliumIT/go-multiping/internal/process"
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
@@ -101,7 +102,7 @@ func (l *listener) run(lm *listenMap) error {
 				continue
 			}
 			r.Recieved = time.Now()
-			go processMessage(l.ctx, lm, r)
+			go process.ProcessMessage(l.ctx, r, lm.getCb)
 		}
 	}()
 	return nil
@@ -177,6 +178,14 @@ func (l *listenMap) addIdx(idx lmI, s *lmE) error {
 
 func (l *listenMap) get(ip net.IP, id int) (*lmE, bool) {
 	return l.getIdx(toLmI(ip, id))
+}
+
+func (lm *listenMap) getCb(ip net.IP, id int) func(context.Context, *ping.Ping) {
+	lme, ok := lm.get(ip, id)
+	if !ok {
+		return nil
+	}
+	return lme.cb
 }
 
 func (l *listenMap) getIdx(idx lmI) (*lmE, bool) {
