@@ -159,7 +159,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 				return p.err
 			}
 
-			if dst.IP == nil || !nDst.IP.Equal(dst.IP) { // IP changed
+			if dst == nil || !nDst.IP.Equal(dst.IP) { // IP changed
 				if lCancel != nil { // cancel the current listener
 					lCancel()
 					lCancel = nil
