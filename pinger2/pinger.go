@@ -57,7 +57,6 @@ func (p *PingConf) validate() *PingConf {
 }
 
 type pendingPkt struct {
-	ctx    context.Context
 	cancel func()
 	p      *ping.Ping
 }
@@ -89,7 +88,8 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 // Packets will be considered timed out after timeout. 0 will disable timeouts
 // With a disabled, or very long timeout and a short interval the packet sequence may rollover and try to reuse
 // a packet sequence before the last packet sent with that sequence is recieved. If this happens, the callback or the
-// first packet sent will be triggered with an error of context.Canceled
+// first packet will never be triggered
+// GoRoutines will be leaked if context is never canceled
 func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.Ping, error), conf *PingConf) error {
 	conf = conf.validate()
 
@@ -210,19 +210,19 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			}
 		}
 
+		var pCtx context.Context
 		// add to pending map
 		if conf.Timeout > 0 {
-			p.ctx, p.cancel = context.WithTimeout(ctx, conf.Timeout)
+			pCtx, p.cancel = context.WithTimeout(ctx, conf.Timeout)
 		} else {
-			p.ctx, p.cancel = context.WithCancel(ctx)
+			pCtx, p.cancel = context.WithCancel(ctx)
 		}
 		pendingLock.Lock()
-		opp, ok := pending[seq]
-		pending[seq] = p
-		if ok { // we've looped seq and this old pending packet is still hanging around, cancel it
+		if opp, ok := pending[seq]; ok {
+			// we've looped seq and this old pending packet is still hanging around, cancel it
 			opp.cancel()
-			go cb(opp.p, opp.ctx.Err())
 		}
+		pending[seq] = p
 		pendingLock.Unlock()
 
 		err = c.lm.Send(p.p, dst)
@@ -243,8 +243,8 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		pktWg.Add(1)
 		go func() {
 			defer pktWg.Done()
-			<-p.ctx.Done()
-			if p.ctx.Err() != context.DeadlineExceeded {
+			<-pCtx.Done()
+			if pCtx.Err() != context.DeadlineExceeded {
 				return
 			}
 
@@ -255,7 +255,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			if !ok {
 				return
 			}
-			cb(p.p, p.ctx.Err())
+			cb(p.p, pCtx.Err())
 		}()
 	}
 
