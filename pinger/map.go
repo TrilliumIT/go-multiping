@@ -7,13 +7,13 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
-type pendingMap struct {
+type PendingMap struct {
 	m map[uint16]*PendingPing
 	l sync.Mutex
 }
 
-// add returns the previous pendingPkt at this sequence if one existed
-func (p *pendingMap) add(pp *PendingPing) (*PendingPing, bool) {
+// Add returns the previous pendingPkt at this sequence if one existed
+func (p *PendingMap) Add(pp *PendingPing) (*PendingPing, bool) {
 	p.l.Lock()
 	opp, ok := p.m[uint16(pp.P.Seq)]
 	p.m[uint16(pp.P.Seq)] = pp
@@ -21,23 +21,22 @@ func (p *pendingMap) add(pp *PendingPing) (*PendingPing, bool) {
 	return opp, ok
 }
 
-// del returns false if the item didn't exist
-func (p *pendingMap) del(seq uint16) {
+func (p *PendingMap) Del(seq uint16) {
 	p.l.Lock()
 	delete(p.m, seq)
 	p.l.Unlock()
 }
 
-func (p *pendingMap) get(seq uint16) (*PendingPing, bool) {
+func (p *PendingMap) Get(seq uint16) (*PendingPing, bool) {
 	p.l.Lock()
 	opp, ok := p.m[seq]
 	p.l.Unlock()
 	return opp, ok
 }
 
-func (pm *pendingMap) onRecv(ctx context.Context, p *ping.Ping) {
+func (pm *PendingMap) OnRecv(ctx context.Context, p *ping.Ping) {
 	seq := uint16(p.Seq)
-	pp, ok := pm.get(seq)
+	pp, ok := pm.Get(seq)
 	if !ok {
 		return
 	}

@@ -96,7 +96,7 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.Ping, error), conf *PingConf) error {
 	conf = conf.validate()
 
-	pm := &pendingMap{
+	pm := &PendingMap{
 		m: make(map[uint16]*PendingPing),
 		l: sync.Mutex{},
 	}
@@ -170,7 +170,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			// Register with listenmap
 			var lctx context.Context
 			lctx, lCancel = context.WithCancel(ctx)
-			err = c.lm.Add(lctx, dst.IP, id, pm.onRecv)
+			err = c.lm.Add(lctx, dst.IP, id, pm.OnRecv)
 			if err != nil {
 				p.l.Unlock()
 				p.Cancel()
@@ -186,7 +186,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			}
 		}
 
-		if opp, ok := pm.add(p); ok {
+		if opp, ok := pm.Add(p); ok {
 			// we've looped seq and this old pending packet is still hanging around, cancel it
 			opp.l.Lock()
 			opp.Err = ErrSeqWrapped

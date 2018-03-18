@@ -22,10 +22,10 @@ func (p *PendingPing) Unlock() {
 	p.l.Unlock()
 }
 
-func (p *PendingPing) Wait(ctx context.Context, pm *pendingMap, cb func(*ping.Ping, error), done func()) {
+func (p *PendingPing) Wait(ctx context.Context, pm *PendingMap, cb func(*ping.Ping, error), done func()) {
 	<-ctx.Done()
 	p.l.Lock()
-	pm.del(uint16(p.P.Seq))
+	pm.Del(uint16(p.P.Seq))
 	if ctx.Err() == context.DeadlineExceeded && p.Err == nil {
 		p.Err = ErrTimedOut
 	}
