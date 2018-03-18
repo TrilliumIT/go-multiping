@@ -8,15 +8,15 @@ import (
 )
 
 type pendingMap struct {
-	m map[uint16]*pendingPkt
+	m map[uint16]*PendingPing
 	l sync.Mutex
 }
 
 // add returns the previous pendingPkt at this sequence if one existed
-func (p *pendingMap) add(pp *pendingPkt) (*pendingPkt, bool) {
+func (p *pendingMap) add(pp *PendingPing) (*PendingPing, bool) {
 	p.l.Lock()
-	opp, ok := p.m[uint16(pp.p.Seq)]
-	p.m[uint16(pp.p.Seq)] = pp
+	opp, ok := p.m[uint16(pp.P.Seq)]
+	p.m[uint16(pp.P.Seq)] = pp
 	p.l.Unlock()
 	return opp, ok
 }
@@ -28,7 +28,7 @@ func (p *pendingMap) del(seq uint16) {
 	p.l.Unlock()
 }
 
-func (p *pendingMap) get(seq uint16) (*pendingPkt, bool) {
+func (p *pendingMap) get(seq uint16) (*PendingPing, bool) {
 	p.l.Lock()
 	opp, ok := p.m[seq]
 	p.l.Unlock()
@@ -43,9 +43,9 @@ func (pm *pendingMap) onRecv(ctx context.Context, p *ping.Ping) {
 	}
 
 	pp.l.Lock()
-	pp.p.UpdateFrom(p)
+	pp.P.UpdateFrom(p)
 	pp.l.Unlock()
 
 	// cancel the timeout thread, will call cb and done() the waitgroup
-	pp.cancel()
+	pp.Cancel()
 }

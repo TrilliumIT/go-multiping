@@ -7,22 +7,30 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
-type pendingPkt struct {
-	cancel func()
-	p      *ping.Ping
+type PendingPing struct {
+	Cancel func()
+	P      *ping.Ping
 	l      sync.Mutex
-	err    error
+	Err    error
 }
 
-func (p *pendingPkt) wait(ctx context.Context, pm *pendingMap, cb func(*ping.Ping, error), done func()) {
+func (p *PendingPing) Lock() {
+	p.l.Lock()
+}
+
+func (p *PendingPing) Unlock() {
+	p.l.Unlock()
+}
+
+func (p *PendingPing) Wait(ctx context.Context, pm *pendingMap, cb func(*ping.Ping, error), done func()) {
 	<-ctx.Done()
 	p.l.Lock()
-	pm.del(uint16(p.p.Seq))
-	if ctx.Err() == context.DeadlineExceeded && p.err == nil {
-		p.err = ErrTimedOut
+	pm.del(uint16(p.P.Seq))
+	if ctx.Err() == context.DeadlineExceeded && p.Err == nil {
+		p.Err = ErrTimedOut
 	}
 
-	cb(p.p, p.err)
+	cb(p.P, p.Err)
 	p.l.Unlock()
 
 	done()

@@ -97,7 +97,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 	conf = conf.validate()
 
 	pm := &pendingMap{
-		m: make(map[uint16]*pendingPkt),
+		m: make(map[uint16]*PendingPing),
 		l: sync.Mutex{},
 	}
 	pktWg := sync.WaitGroup{}
@@ -131,7 +131,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		}
 		seq = uint16(sent)
 
-		p := &pendingPkt{p: &ping.Ping{
+		p := &PendingPing{P: &ping.Ping{
 			Host:    host,
 			ID:      int(id),
 			Seq:     int(seq),
@@ -139,20 +139,20 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		}}
 		p.l.Lock()
 		var pCtx context.Context
-		pCtx, p.cancel = context.WithCancel(ctx)
+		pCtx, p.Cancel = context.WithCancel(ctx)
 
 		if dst == nil || (conf.ReResolveEvery != 0 && sent%conf.ReResolveEvery == 0) {
 			var nDst *net.IPAddr
-			nDst, p.err = net.ResolveIPAddr("ip", host)
-			if p.err != nil {
+			nDst, p.Err = net.ResolveIPAddr("ip", host)
+			if p.Err != nil {
 				p.l.Unlock()
-				p.cancel()
+				p.Cancel()
 				if conf.RetryOnResolveError {
-					go p.wait(pCtx, pm, cb, pktWg.Done)
+					go p.Wait(pCtx, pm, cb, pktWg.Done)
 					continue
 				}
 				pktWg.Done()
-				return p.err
+				return p.Err
 			}
 
 			if dst == nil || !nDst.IP.Equal(dst.IP) { // IP changed
@@ -163,8 +163,8 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 				dst = nDst
 			}
 		}
-		p.p.Dst = dst.IP
-		p.p.Src = c.lm.SrcAddr(dst.IP)
+		p.P.Dst = dst.IP
+		p.P.Src = c.lm.SrcAddr(dst.IP)
 
 		if lCancel == nil { // we don't have a listner yet for this dst
 			// Register with listenmap
@@ -173,7 +173,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			err = c.lm.Add(lctx, dst.IP, id, pm.onRecv)
 			if err != nil {
 				p.l.Unlock()
-				p.cancel()
+				p.Cancel()
 				pktWg.Done() // we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
 
 				if err == listenMap.ErrAlreadyExists { // we already have this listener registered
@@ -189,33 +189,33 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		if opp, ok := pm.add(p); ok {
 			// we've looped seq and this old pending packet is still hanging around, cancel it
 			opp.l.Lock()
-			opp.err = ErrSeqWrapped
+			opp.Err = ErrSeqWrapped
 			opp.l.Unlock()
-			opp.cancel()
+			opp.Cancel()
 		}
 
-		p.err = c.lm.Send(p.p, dst)
+		p.Err = c.lm.Send(p.P, dst)
 
-		if p.err != nil {
+		if p.Err != nil {
 			p.l.Unlock()
-			p.cancel()
+			p.Cancel()
 			if conf.RetryOnSendError {
-				go p.wait(pCtx, pm, cb, pktWg.Done)
+				go p.Wait(pCtx, pm, cb, pktWg.Done)
 				continue
 			}
 			pktWg.Done()
-			return p.err
+			return p.Err
 		}
 
 		if conf.Timeout > 0 {
 			// we're not running wait yet, so nothing is waiting on this ctx, we're replacing it with one with a timeout now
 			// but canceling is a good idea to release resources from the previous ctx
-			p.cancel()
-			pCtx, p.cancel = context.WithTimeout(ctx, conf.Timeout)
+			p.Cancel()
+			pCtx, p.Cancel = context.WithTimeout(ctx, conf.Timeout)
 		}
 
 		p.l.Unlock()
-		go p.wait(pCtx, pm, cb, pktWg.Done)
+		go p.Wait(pCtx, pm, cb, pktWg.Done)
 	}
 
 	tickCancel()
