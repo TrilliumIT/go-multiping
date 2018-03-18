@@ -10,6 +10,7 @@ import (
 
 	"github.com/TrilliumIT/go-multiping/internal/listenMap"
 	"github.com/TrilliumIT/go-multiping/ping"
+	"github.com/TrilliumIT/go-multiping/pinger/internal/ticker"
 )
 
 func init() {
@@ -101,9 +102,9 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 	}
 	pktWg := sync.WaitGroup{}
 
-	intervalTick := newIntervalTicker(conf.Interval, conf.RandDelay, pktWg.Wait)
-	intervalCtx, intervalCancel := context.WithCancel(ctx)
-	go intervalTick.run(intervalCtx)
+	tick := ticker.NewTicker(conf.Interval, conf.RandDelay, pktWg.Wait)
+	tickCtx, tickCancel := context.WithCancel(ctx)
+	go tick.Run(tickCtx)
 
 	var id, seq uint16
 	var dst *net.IPAddr
@@ -119,11 +120,11 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-intervalTick.C:
+		case <-tick.C:
 		}
 
 		pktWg.Add(1)
-		intervalTick.Cont()
+		tick.Cont()
 
 		if id == 0 {
 			id = uint16(rand.Intn(1<<16-2) + 1)
@@ -217,7 +218,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		go p.wait(pCtx, pm, cb, pktWg.Done)
 	}
 
-	intervalCancel()
+	tickCancel()
 	pktWg.Wait()
 	return nil
 }

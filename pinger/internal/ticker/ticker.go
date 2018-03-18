@@ -1,4 +1,4 @@
-package pinger
+package ticker
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type intervalTicker struct {
+type Ticker struct {
 	C         chan time.Time
 	interval  time.Duration
 	randDelay bool
@@ -14,8 +14,8 @@ type intervalTicker struct {
 	Cont      func()
 }
 
-func newIntervalTicker(interval time.Duration, randDelay bool, wait func()) *intervalTicker {
-	return &intervalTicker{
+func NewTicker(interval time.Duration, randDelay bool, wait func()) *Ticker {
+	return &Ticker{
 		C:         make(chan time.Time),
 		interval:  interval,
 		randDelay: randDelay,
@@ -24,7 +24,7 @@ func newIntervalTicker(interval time.Duration, randDelay bool, wait func()) *int
 	}
 }
 
-func (it *intervalTicker) run(ctx context.Context) {
+func (it *Ticker) Run(ctx context.Context) {
 	if it.interval > 0 {
 		if it.randDelay {
 			ft := time.NewTimer(time.Duration(rand.Int63n(it.interval.Nanoseconds())))
