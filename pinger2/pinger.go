@@ -63,12 +63,6 @@ func (p *PingConf) validate() *PingConf {
 	return p
 }
 
-type ErrTimedOut struct{}
-
-func (e *ErrTimedOut) Error() string {
-	return "ping timed out"
-}
-
 type pendingPkt struct {
 	ctx    context.Context
 	cancel func()
@@ -82,11 +76,14 @@ func Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
 }
 
 // Ping starts a new ping to host calling cb every time a reply is recieved or a packet times out
-// Timed out packets will return ErrTimedOut to cb
+// Timed out packets will return an error of context.DeadlineExceeded to cb
 // Ping will send up to count pings, or unlimited if count is 0
 // Ping will send a ping each interval. If interval is 0 ping will flood ping, sending a new packet as soon
 // as the previous one is returned or timed out
 // Packets will be considered timed out after timeout. 0 will disable timeouts
+// With a disabled, or very long timeout and a short interval the packet sequence may rollover and try to reuse
+// a packet sequence before the last packet sent with that sequence is recieved. If this happens, the callback or the
+// first packet sent will be triggered with an error of context.Canceled
 func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
 	conf = conf.validate()
 
@@ -227,7 +224,7 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 		pending[seq] = p
 		if ok { // we've looped seq and this old pending packet is still hanging around, cancel it
 			opp.cancel()
-			// TODO
+			go cb(opp.p, opp.ctx.Err())
 		}
 		pendingLock.Unlock()
 
@@ -261,7 +258,7 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 			if !ok {
 				return
 			}
-			cb(p.p, &ErrTimedOut{})
+			cb(p.p, p.ctx.Err())
 		}()
 	}
 
