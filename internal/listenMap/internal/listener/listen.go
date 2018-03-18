@@ -43,6 +43,24 @@ func (l *Listener) Running() bool {
 	return r
 }
 
+type ErrNotRunning struct{}
+
+func (e *ErrNotRunning) Error() string {
+	return "listener not running"
+}
+
+func (l *Listener) Send(p *ping.Ping) error {
+	l.l.RLock()
+	defer l.l.RUnlock()
+	if !l.usRunning() {
+		return &ErrNotRunning{}
+	}
+	l.wg.Add(1)
+	defer l.wg.Done()
+	// TODO the rest of the send
+	return nil
+}
+
 func (l *Listener) usRunning() bool {
 	select {
 	case <-l.dead:
@@ -53,7 +71,9 @@ func (l *Listener) usRunning() bool {
 }
 
 func (l *Listener) WgAdd(delta int) {
+	l.l.RLock()
 	l.wg.Add(delta)
+	l.l.RUnlock()
 }
 
 func (l *Listener) WgDone() {
@@ -83,12 +103,22 @@ func (l *Listener) Run(getCb func(net.IP, int) func(context.Context, *ping.Ping)
 	// this is not inheriting a context. Each ip has a context, which will decrement the waitgroup when it's done.
 	l.ctx, cancel = context.WithCancel(context.Background())
 	go func() {
-		l.wg.Wait()
-		l.l.Lock()
-		_ = l.conn.Close()
-		cancel()
-		<-l.dead
-		l.l.Unlock()
+		for {
+			l.wg.Wait()
+			l.l.Lock()
+			wgC := make(chan struct{})
+			go func() { l.wg.Wait(); close(wgC) }()
+			select {
+			case <-wgC:
+			default:
+				l.l.Unlock()
+				continue
+			}
+			_ = l.conn.Close()
+			cancel()
+			<-l.dead
+			l.l.Unlock()
+		}
 	}()
 
 	go func() {

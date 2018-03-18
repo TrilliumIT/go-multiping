@@ -50,10 +50,14 @@ func (l *ListenMap) getL(ip net.IP) *listener.Listener {
 	return l.v6l
 }
 
-type alreadyExistsError struct{}
+type ErrAlreadyExists struct{}
 
-func (a *alreadyExistsError) Error() string {
+func (a *ErrAlreadyExists) Error() string {
 	return "already exists"
+}
+
+func (lm *ListenMap) Send(p *ping.Ping) error {
+	return lm.getL(p.Dst).Send(p)
 }
 
 func (lm *ListenMap) Add(ctx context.Context, ip net.IP, id int, cb func(context.Context, *ping.Ping)) error {
@@ -86,7 +90,7 @@ func (l *ListenMap) addIdx(idx lmI, s *lmE) error {
 	_, ok := l.m[idx]
 	if ok {
 		l.l.Unlock()
-		return &alreadyExistsError{}
+		return &ErrAlreadyExists{}
 	}
 	l.m[idx] = s
 	l.l.Unlock()

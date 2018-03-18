@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	pingerCreated = make(chan struct{})
+	socketCreated = make(chan struct{})
 }
 
 type Pinger struct {
@@ -13,16 +13,16 @@ type Pinger struct {
 }
 
 var pinger *Pinger
-var pingerCreated chan struct{}
+var socketCreated chan struct{}
 
 func Default() *Pinger {
 	select {
-	case <-pingerCreated:
+	case <-socketCreated:
 		return pinger
 	default:
 	}
 	pinger = NewPinger()
-	close(pingerCreated)
+	close(socketCreated)
 	return pinger
 }
 
