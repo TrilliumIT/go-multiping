@@ -10,8 +10,7 @@ import (
 // Conn is a raw socket connection (one for ipv4 and one for ipv6). Connections are only actively listening when there are active pings going on
 // Conn must be created via NewConn or NewConnWithContext
 type Conn struct {
-	ctx context.Context
-	lm  *listenMap.ListenMap
+	lm *listenMap.ListenMap
 }
 
 var conn *Conn
@@ -44,7 +43,6 @@ func NewConn() *Conn {
 // NewConnWithContext returns a new Conn with the given context. When ctx ic canceled, all active pings and listeners are stopped.
 func NewConnWithContext(ctx context.Context) *Conn {
 	return &Conn{
-		ctx: ctx,
-		lm:  listenMap.NewListenMap(ctx),
+		lm: listenMap.NewListenMap(ctx),
 	}
 }
