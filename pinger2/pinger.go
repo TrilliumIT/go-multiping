@@ -92,8 +92,10 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 
 	pendingLock := sync.Mutex{}
 	pending := make(map[uint16]*pendingPkt)
+	pktWg := sync.WaitGroup{}
 
 	ctx, cancel := context.WithCancel(conf.Ctx)
+	defer cancel()
 	go func() {
 		select {
 		case <-c.ctx.Done():
@@ -103,24 +105,30 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 	}()
 
 	intervalTick := make(chan time.Time)
+	intervalTicker := func() {
+		for {
+			pktWg.Wait()
+			select {
+			case <-ctx.Done():
+				return
+			case intervalTick <- time.Now():
+			}
+		}
+	}
 	if conf.Interval > 0 {
-		go func() {
+		intervalTicker = func() {
 			intervalTicker := time.NewTicker(conf.Interval)
 			defer intervalTicker.Stop()
 			for {
 				select {
 				case <-ctx.Done():
 					return
-				case t := <-intervalTicker.C:
-					select {
-					case <-ctx.Done():
-						return
-					case intervalTick <- t:
-					}
+				case intervalTick <- <-intervalTicker.C:
 				}
 			}
-		}()
+		}
 	}
+	go intervalTicker()
 
 	pendingCb := func(ctx context.Context, p *ping.Ping) {
 		seq := uint16(p.Seq)
@@ -131,91 +139,48 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 		if !ok {
 			return
 		}
-		// cancel the timeout thread
+		// cancel the timeout thread, which ends the waitgroup
 		pp.cancel()
-		if conf.Interval == 0 {
-			go func() { intervalTick <- time.Now() }()
-		}
 		pp.p.UpdateFrom(p)
 		cb(pp.p, nil)
 	}
 
-	var id uint16
+	var id, seq uint16
 	var dst *net.IPAddr
-	var sent int
+	var sent int = -1 // number of packets attempted to be sent
 	var lCancel func()
 	var err error
 	for {
+		sent++
+		if conf.Count > 0 && sent >= conf.Count {
+			break
+		}
+
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-intervalTick:
-			p := &pendingPkt{p: &ping.Ping{
-				Host:    host,
-				Seq:     int(uint16(sent)),
-				TimeOut: conf.Timeout,
-			}}
+		}
 
-			if id == 0 {
-				id = uint16(rand.Intn(1<<16 - 1))
-			}
-			p.p.ID = int(id)
+		seq = uint16(sent)
+		p := &pendingPkt{p: &ping.Ping{
+			Host:    host,
+			Seq:     int(seq),
+			TimeOut: conf.Timeout,
+		}}
 
-			if dst == nil || (conf.ReResolveEvery != 0 && sent%conf.ReResolveEvery == 0) {
-				var nDst *net.IPAddr
-				nDst, err = net.ResolveIPAddr("ip", host)
-				if err != nil {
-					if conf.RetryOnResolveError {
-						go cb(p.p, err)
-						dst = nil
-						if conf.Interval == 0 {
-							go func() { intervalTick <- time.Now() }()
-						}
-						continue
-					}
-					return err
-				}
+		if id == 0 {
+			id = uint16(rand.Intn(1<<16 - 1))
+		}
+		p.p.ID = int(id)
 
-				// IP changed
-				if !nDst.IP.Equal(dst.IP) {
-					if lCancel != nil {
-						lCancel()
-						lCancel = nil
-					}
-					dst = nDst
-				}
-			}
-			p.p.Dst = dst.IP
-			p.p.Src = c.lm.SrcAddr(dst.IP)
-
-			if lCancel == nil {
-				// Register with listenmap
-				var lctx context.Context
-				lctx, lCancel = context.WithCancel(ctx)
-				err = c.lm.Add(lctx, dst.IP, id, pendingCb)
-				if err != nil {
-					if _, ok := err.(*listenMap.ErrAlreadyExists); ok {
-						id = 0
-						lCancel = nil
-						continue
-					}
-					return err
-				}
-			}
-
-			// add to pending map
-			p.ctx, p.cancel = context.WithCancel(ctx)
-			pendingLock.Lock()
-			pending[id] = p
-			pendingLock.Unlock()
-
-			err = c.lm.Send(p.p, dst)
+		if dst == nil || (conf.ReResolveEvery != 0 && sent%conf.ReResolveEvery == 0) {
+			var nDst *net.IPAddr
+			nDst, err = net.ResolveIPAddr("ip", host)
 			if err != nil {
-				pendingLock.Lock()
-				delete(pending, id)
-				pendingLock.Unlock()
-				if conf.RetryOnSendError {
+				if conf.RetryOnResolveError {
 					go cb(p.p, err)
+					dst = nil
 					if conf.Interval == 0 {
 						go func() { intervalTick <- time.Now() }()
 					}
@@ -224,28 +189,82 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 				return err
 			}
 
-			if conf.Timeout > 0 {
-				go func() {
-					to := time.NewTimer(time.Until(p.p.Sent.Add(p.p.TimeOut)))
-					defer to.Stop()
-					select {
-					case <-p.ctx.Done():
-						return
-					case <-to.C:
-						pendingLock.Lock()
-						_, ok := pending[id]
-						delete(pending, id)
-						pendingLock.Unlock()
-						if !ok {
-							return
-						}
-						if conf.Interval == 0 {
-							go func() { intervalTick <- time.Now() }()
-						}
-						cb(p.p, &ErrTimedOut{})
-					}
-				}()
+			// IP changed
+			if !nDst.IP.Equal(dst.IP) {
+				if lCancel != nil {
+					lCancel()
+					lCancel = nil
+				}
+				dst = nDst
 			}
 		}
+		p.p.Dst = dst.IP
+		p.p.Src = c.lm.SrcAddr(dst.IP)
+
+		if lCancel == nil {
+			// Register with listenmap
+			var lctx context.Context
+			lctx, lCancel = context.WithCancel(ctx)
+			err = c.lm.Add(lctx, dst.IP, id, pendingCb)
+			if err != nil {
+				if _, ok := err.(*listenMap.ErrAlreadyExists); ok {
+					id = 0
+					lCancel = nil
+					continue
+				}
+				return err
+			}
+		}
+
+		// add to pending map
+		if conf.Timeout > 0 {
+			p.ctx, p.cancel = context.WithTimeout(ctx, conf.Timeout)
+		} else {
+			p.ctx, p.cancel = context.WithCancel(ctx)
+		}
+		pendingLock.Lock()
+		opp, ok := pending[seq]
+		pending[seq] = p
+		if ok { // we've looped seq and this old pending packet is still hanging around, cancel it
+			opp.cancel()
+			// TODO
+		}
+		pendingLock.Unlock()
+
+		err = c.lm.Send(p.p, dst)
+		if err != nil {
+			pendingLock.Lock()
+			delete(pending, seq)
+			pendingLock.Unlock()
+			if conf.RetryOnSendError {
+				go cb(p.p, err)
+				if conf.Interval == 0 {
+					go func() { intervalTick <- time.Now() }()
+				}
+				continue
+			}
+			return err
+		}
+
+		pktWg.Add(1)
+		go func() {
+			defer pktWg.Done()
+			<-p.ctx.Done()
+			if p.ctx.Err() != context.DeadlineExceeded {
+				return
+			}
+
+			pendingLock.Lock()
+			_, ok := pending[seq]
+			delete(pending, seq)
+			pendingLock.Unlock()
+			if !ok {
+				return
+			}
+			cb(p.p, &ErrTimedOut{})
+		}()
 	}
+
+	pktWg.Wait()
+	return nil
 }
