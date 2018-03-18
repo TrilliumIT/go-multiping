@@ -19,10 +19,10 @@ type lmE struct {
 	ctx context.Context
 }
 
-func toLmI(ip net.IP, id int) lmI {
+func toLmI(ip net.IP, id uint16) lmI {
 	var r lmI
 	copy(r[0:16], ip.To16())
-	binary.LittleEndian.PutUint16(r[16:], uint16(id))
+	binary.LittleEndian.PutUint16(r[16:], id)
 	return r
 }
 
@@ -56,15 +56,19 @@ func (a *ErrAlreadyExists) Error() string {
 	return "already exists"
 }
 
-func (lm *ListenMap) Send(p *ping.Ping) error {
-	return lm.getL(p.Dst).Send(p)
+func (lm *ListenMap) Send(p *ping.Ping, dst net.Addr) error {
+	return lm.getL(p.Dst).Send(p, dst)
 }
 
-func (lm *ListenMap) Add(ctx context.Context, ip net.IP, id int, cb func(context.Context, *ping.Ping)) error {
+func (lm *ListenMap) SrcAddr(dst net.IP) net.IP {
+	return lm.getL(dst).Props.SrcIP
+}
+
+func (lm *ListenMap) Add(ctx context.Context, ip net.IP, id uint16, cb func(context.Context, *ping.Ping)) error {
 	return lm.add(ip, id, &lmE{cb, ctx})
 }
 
-func (lm *ListenMap) add(ip net.IP, id int, e *lmE) error {
+func (lm *ListenMap) add(ip net.IP, id uint16, e *lmE) error {
 	idx := toLmI(ip, id)
 	err := lm.addIdx(idx, e)
 	if err != nil {
@@ -97,11 +101,11 @@ func (l *ListenMap) addIdx(idx lmI, s *lmE) error {
 	return nil
 }
 
-func (l *ListenMap) get(ip net.IP, id int) (*lmE, bool) {
+func (l *ListenMap) get(ip net.IP, id uint16) (*lmE, bool) {
 	return l.getIdx(toLmI(ip, id))
 }
 
-func (lm *ListenMap) GetCB(ip net.IP, id int) func(context.Context, *ping.Ping) {
+func (lm *ListenMap) GetCB(ip net.IP, id uint16) func(context.Context, *ping.Ping) {
 	lme, ok := lm.get(ip, id)
 	if !ok {
 		return nil
@@ -116,7 +120,7 @@ func (l *ListenMap) getIdx(idx lmI) (*lmE, bool) {
 	return s, ok
 }
 
-func (l *ListenMap) del(ip net.IP, id int) {
+func (l *ListenMap) del(ip net.IP, id uint16) {
 	l.delIdx(toLmI(ip, id))
 }
 

@@ -2,37 +2,250 @@ package pinger
 
 import (
 	"context"
+	"math/rand"
+	"net"
+	"sync"
+	"time"
+
+	"github.com/TrilliumIT/go-multiping/internal/listenMap"
+	"github.com/TrilliumIT/go-multiping/ping"
 )
 
 func init() {
-	socketCreated = make(chan struct{})
+	rand.Seed(time.Now().UnixNano())
 }
 
-type Pinger struct {
-	ctx context.Context
+// PingConf holds optional coniguration parameters
+type PingConf struct {
+	// Ctx is an optional context which can be used to cancel or timeout the ping operation
+	Ctx context.Context
+
+	// Count is how many pings will be attempted
+	// 0 for unlimited pings
+	Count int
+
+	// Interval is the interval between pings
+	// 0 for flood ping, sending a new packet as soon as the previous one is replied or times out
+	Interval time.Duration
+
+	// Timeout is how long to wait before considering a ping timed out
+	Timeout time.Duration
+
+	// RetryOnResolveError will cause callback to be called on resolution errors
+	// Resolution errors can be identied by error type net.DNSError
+	// Otherwise Ping() will stop and retun an error on resolution errors
+	RetryOnResolveError bool
+
+	// RetryOnSendError will cause callback to be called on send errors.
+	// Otherwise Ping() will stop and return an error on send errors.
+	RetryOnSendError bool
+
+	// ReResolveEvery caused pinger to re-resolve dns for a host every n pings.
+	// 0 to disable. 1 to re-resolve every ping
+	ReResolveEvery int
 }
 
-var pinger *Pinger
-var socketCreated chan struct{}
-
-func Default() *Pinger {
-	select {
-	case <-socketCreated:
-		return pinger
-	default:
+func DefaultPingConf() *PingConf {
+	return &PingConf{
+		Ctx:      context.Background(),
+		Interval: time.Second,
+		Timeout:  time.Second,
 	}
-	pinger = NewPinger()
-	close(socketCreated)
-	return pinger
 }
 
-func NewPinger() *Pinger {
-	return WithContext(context.Background())
-}
-
-func WithContext(ctx context.Context) *Pinger {
-	p := &Pinger{
-		ctx: ctx,
+func (p *PingConf) validate() *PingConf {
+	if p == nil {
+		p = DefaultPingConf()
+	}
+	if p.Ctx == nil {
+		p.Ctx = context.Background()
 	}
 	return p
+}
+
+type ErrTimedOut struct{}
+
+func (e *ErrTimedOut) Error() string {
+	return "ping timed out"
+}
+
+type pendingPkt struct {
+	ctx    context.Context
+	cancel func()
+	p      *ping.Ping
+}
+
+// Ping starts a ping using the global conn
+// see Conn.Ping for details
+func Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
+	return DefaultConn().Ping(host, cb, conf)
+}
+
+// Ping starts a new ping to host calling cb every time a reply is recieved or a packet times out
+// Timed out packets will return ErrTimedOut to cb
+// Ping will send up to count pings, or unlimited if count is 0
+// Ping will send a ping each interval. If interval is 0 ping will flood ping, sending a new packet as soon
+// as the previous one is returned or timed out
+// Packets will be considered timed out after timeout. 0 will disable timeouts
+func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
+	conf = conf.validate()
+
+	pendingLock := sync.Mutex{}
+	pending := make(map[uint16]*pendingPkt)
+
+	ctx, cancel := context.WithCancel(conf.Ctx)
+	go func() {
+		select {
+		case <-c.ctx.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	intervalTick := make(chan time.Time)
+	if conf.Interval > 0 {
+		go func() {
+			intervalTicker := time.NewTicker(conf.Interval)
+			defer intervalTicker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case t := <-intervalTicker.C:
+					select {
+					case <-ctx.Done():
+						return
+					case intervalTick <- t:
+					}
+				}
+			}
+		}()
+	}
+
+	pendingCb := func(ctx context.Context, p *ping.Ping) {
+		seq := uint16(p.Seq)
+		pendingLock.Lock()
+		pp, ok := pending[seq]
+		delete(pending, seq)
+		pendingLock.Unlock()
+		if !ok {
+			return
+		}
+		// cancel the timeout thread
+		pp.cancel()
+		if conf.Interval == 0 {
+			go func() { intervalTick <- time.Now() }()
+		}
+		pp.p.UpdateFrom(p)
+		cb(pp.p, nil)
+	}
+
+	var id uint16
+	var dst *net.IPAddr
+	var sent int
+	var lCancel func()
+	var err error
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-intervalTick:
+			p := &pendingPkt{p: &ping.Ping{
+				Host:    host,
+				Seq:     int(uint16(sent)),
+				TimeOut: conf.Timeout,
+			}}
+
+			if id == 0 {
+				id = uint16(rand.Intn(1<<16 - 1))
+			}
+			p.p.ID = int(id)
+
+			if dst == nil || (conf.ReResolveEvery != 0 && sent%conf.ReResolveEvery == 0) {
+				var nDst *net.IPAddr
+				nDst, err = net.ResolveIPAddr("ip", host)
+				if err != nil {
+					if conf.RetryOnResolveError {
+						go cb(p.p, err)
+						dst = nil
+						if conf.Interval == 0 {
+							go func() { intervalTick <- time.Now() }()
+						}
+						continue
+					}
+					return err
+				}
+
+				// IP changed
+				if !nDst.IP.Equal(dst.IP) {
+					if lCancel != nil {
+						lCancel()
+						lCancel = nil
+					}
+					dst = nDst
+				}
+			}
+			p.p.Dst = dst.IP
+			p.p.Src = c.lm.SrcAddr(dst.IP)
+
+			if lCancel == nil {
+				// Register with listenmap
+				var lctx context.Context
+				lctx, lCancel = context.WithCancel(ctx)
+				err = c.lm.Add(lctx, dst.IP, id, pendingCb)
+				if err != nil {
+					if _, ok := err.(*listenMap.ErrAlreadyExists); ok {
+						id = 0
+						lCancel = nil
+						continue
+					}
+					return err
+				}
+			}
+
+			// add to pending map
+			p.ctx, p.cancel = context.WithCancel(ctx)
+			pendingLock.Lock()
+			pending[id] = p
+			pendingLock.Unlock()
+
+			err = c.lm.Send(p.p, dst)
+			if err != nil {
+				pendingLock.Lock()
+				delete(pending, id)
+				pendingLock.Unlock()
+				if conf.RetryOnSendError {
+					go cb(p.p, err)
+					if conf.Interval == 0 {
+						go func() { intervalTick <- time.Now() }()
+					}
+					continue
+				}
+				return err
+			}
+
+			if conf.Timeout > 0 {
+				go func() {
+					to := time.NewTimer(time.Until(p.p.Sent.Add(p.p.TimeOut)))
+					defer to.Stop()
+					select {
+					case <-p.ctx.Done():
+						return
+					case <-to.C:
+						pendingLock.Lock()
+						_, ok := pending[id]
+						delete(pending, id)
+						pendingLock.Unlock()
+						if !ok {
+							return
+						}
+						if conf.Interval == 0 {
+							go func() { intervalTick <- time.Now() }()
+						}
+						cb(p.p, &ErrTimedOut{})
+					}
+				}()
+			}
+		}
+	}
 }

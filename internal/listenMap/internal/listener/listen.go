@@ -20,16 +20,16 @@ type Listener struct {
 	wg    sync.WaitGroup
 	ctx   context.Context
 	conn  *icmp.PacketConn
-	props *messages.Props
+	Props *messages.Props
 }
 
 func New(p int) *Listener {
 	l := &Listener{proto: p}
 	switch p {
 	case 4:
-		l.props = messages.V4Props
+		l.Props = messages.V4Props
 	case 6:
-		l.props = messages.V6Props
+		l.Props = messages.V6Props
 	}
 	l.dead = make(chan struct{})
 	close(l.dead)
@@ -49,7 +49,7 @@ func (e *ErrNotRunning) Error() string {
 	return "listener not running"
 }
 
-func (l *Listener) Send(p *ping.Ping) error {
+func (l *Listener) Send(p *ping.Ping, dst net.Addr) error {
 	l.l.RLock()
 	defer l.l.RUnlock()
 	if !l.usRunning() {
@@ -58,6 +58,12 @@ func (l *Listener) Send(p *ping.Ping) error {
 	l.wg.Add(1)
 	defer l.wg.Done()
 	// TODO the rest of the send
+	p.Sent = time.Now()
+	b, err := p.ToICMPMsg()
+	if err != nil {
+		return err
+	}
+	p.Len, err = l.conn.WriteTo(b, dst)
 	return nil
 }
 
@@ -80,7 +86,7 @@ func (l *Listener) WgDone() {
 	l.wg.Done()
 }
 
-func (l *Listener) Run(getCb func(net.IP, int) func(context.Context, *ping.Ping)) error {
+func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Ping)) error {
 	l.l.Lock()
 	defer l.l.Unlock()
 	if l.usRunning() {
@@ -89,7 +95,7 @@ func (l *Listener) Run(getCb func(net.IP, int) func(context.Context, *ping.Ping)
 
 	l.dead = make(chan struct{})
 	var err error
-	l.conn, err = icmp.ListenPacket(l.props.Network, l.props.Src)
+	l.conn, err = icmp.ListenPacket(l.Props.Network, l.Props.Src)
 	if err != nil {
 		return err
 	}
@@ -130,7 +136,7 @@ func (l *Listener) Run(getCb func(net.IP, int) func(context.Context, *ping.Ping)
 			default:
 			}
 			r := &messages.RecvMsg{
-				Payload: make([]byte, l.props.ExpectedLen),
+				Payload: make([]byte, l.Props.ExpectedLen),
 			}
 			err := readPacket(l.conn, r)
 			if err != nil {

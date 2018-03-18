@@ -10,7 +10,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
-func ProcessMessage(ctx context.Context, r *messages.RecvMsg, getCb func(net.IP, int) func(context.Context, *ping.Ping)) {
+func ProcessMessage(ctx context.Context, r *messages.RecvMsg, getCb func(net.IP, uint16) func(context.Context, *ping.Ping)) {
 	var proto int
 	var typ icmp.Type
 	p := &ping.Ping{}
@@ -48,7 +48,7 @@ func ProcessMessage(ctx context.Context, r *messages.RecvMsg, getCb func(net.IP,
 
 	p.Len = r.PayloadLen
 
-	cb := getCb(p.Dst, p.ID)
+	cb := getCb(p.Dst, uint16(p.ID))
 	if cb == nil {
 		return
 	}
