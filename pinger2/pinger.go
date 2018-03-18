@@ -105,36 +105,9 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 	}
 	pktWg := sync.WaitGroup{}
 
-	intervalTick := make(chan time.Time)
+	intervalTick := make(intervalTicker)
 	intervalCtx, intervalCancel := context.WithCancel(ctx)
-	var intervalTicker func()
-	if conf.Interval > 0 {
-		intervalTicker = func() {
-			intervalTicker := time.NewTicker(conf.Interval)
-			defer intervalTicker.Stop()
-			for {
-				select {
-				case <-intervalCtx.Done():
-					return
-				case intervalTick <- <-intervalTicker.C:
-					pktWg.Add(1)
-				}
-			}
-		}
-	} else {
-		intervalTicker = func() {
-			for {
-				pktWg.Wait()
-				select {
-				case <-intervalCtx.Done():
-					return
-				case intervalTick <- time.Now():
-					pktWg.Add(1)
-				}
-			}
-		}
-	}
-	go intervalTicker()
+	go intervalTick.run(intervalCtx, conf.Interval, &pktWg)
 
 	var id, seq uint16
 	var dst *net.IPAddr
@@ -300,4 +273,31 @@ func (pm *pendingMap) onRecv(ctx context.Context, p *ping.Ping) {
 
 	// cancel the timeout thread, will call cb and done() the waitgroup
 	pp.cancel()
+}
+
+type intervalTicker chan time.Time
+
+func (it intervalTicker) run(ctx context.Context, interval time.Duration, wg *sync.WaitGroup) {
+	if interval > 0 {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case it <- <-t.C:
+				wg.Add(1)
+			}
+		}
+	}
+
+	for {
+		wg.Wait()
+		select {
+		case <-ctx.Done():
+			return
+		case it <- time.Now():
+			wg.Add(1)
+		}
+	}
 }
