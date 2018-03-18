@@ -136,21 +136,6 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 	}
 	go intervalTicker()
 
-	pendingCb := func(ctx context.Context, p *ping.Ping) {
-		seq := uint16(p.Seq)
-		pp, ok := pm.get(seq)
-		if !ok {
-			return
-		}
-
-		pp.l.Lock()
-		pp.p.UpdateFrom(p)
-		pp.l.Unlock()
-
-		// cancel the timeout thread, will call cb and done() the waitgroup
-		pp.cancel()
-	}
-
 	var id, seq uint16
 	var dst *net.IPAddr
 	var sent int = -1 // number of packets attempted to be sent
@@ -212,7 +197,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			// Register with listenmap
 			var lctx context.Context
 			lctx, lCancel = context.WithCancel(ctx)
-			err = c.lm.Add(lctx, dst.IP, id, pendingCb)
+			err = c.lm.Add(lctx, dst.IP, id, pm.onRecv)
 			if err != nil {
 				p.l.Unlock()
 				p.cancel()
@@ -300,4 +285,19 @@ func (p *pendingPkt) wait(ctx context.Context, pm *pendingMap, cb func(*ping.Pin
 	p.l.Unlock()
 
 	done()
+}
+
+func (pm *pendingMap) onRecv(ctx context.Context, p *ping.Ping) {
+	seq := uint16(p.Seq)
+	pp, ok := pm.get(seq)
+	if !ok {
+		return
+	}
+
+	pp.l.Lock()
+	pp.p.UpdateFrom(p)
+	pp.l.Unlock()
+
+	// cancel the timeout thread, will call cb and done() the waitgroup
+	pp.cancel()
 }
