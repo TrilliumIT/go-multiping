@@ -14,10 +14,7 @@ import (
 type lmI [18]byte
 
 // listen map entry
-type lmE struct {
-	cb  func(context.Context, *ping.Ping)
-	ctx context.Context
-}
+type lmE func(context.Context, *ping.Ping)
 
 func toLmI(ip net.IP, id uint16) lmI {
 	var r lmI
@@ -29,14 +26,14 @@ func toLmI(ip net.IP, id uint16) lmI {
 func NewListenMap(ctx context.Context) *ListenMap {
 	return &ListenMap{
 		ctx: ctx,
-		m:   make(map[lmI]*lmE),
+		m:   make(map[lmI]lmE),
 		v4l: listener.New(4),
 		v6l: listener.New(6),
 	}
 }
 
 type ListenMap struct {
-	m   map[lmI]*lmE
+	m   map[lmI]lmE
 	l   sync.RWMutex
 	ctx context.Context
 	v4l *listener.Listener
@@ -65,19 +62,19 @@ func (lm *ListenMap) SrcAddr(dst net.IP) net.IP {
 }
 
 func (lm *ListenMap) Add(ctx context.Context, ip net.IP, id uint16, cb func(context.Context, *ping.Ping)) error {
-	return lm.add(ip, id, &lmE{cb, ctx})
+	return lm.add(ctx, ip, id, cb)
 }
 
-func (lm *ListenMap) add(ip net.IP, id uint16, e *lmE) error {
+func (lm *ListenMap) add(ctx context.Context, ip net.IP, id uint16, cb lmE) error {
 	idx := toLmI(ip, id)
-	err := lm.addIdx(idx, e)
+	err := lm.addIdx(idx, cb)
 	if err != nil {
 		return err
 	}
 	l := lm.getL(ip)
 	l.WgAdd(1)
 	go func() {
-		<-e.ctx.Done()
+		<-ctx.Done()
 		lm.delIdx(idx)
 		l.WgDone()
 	}()
@@ -89,7 +86,7 @@ func (lm *ListenMap) add(ip net.IP, id uint16, e *lmE) error {
 	return l.Run(lm.GetCB)
 }
 
-func (l *ListenMap) addIdx(idx lmI, s *lmE) error {
+func (l *ListenMap) addIdx(idx lmI, s lmE) error {
 	l.l.Lock()
 	_, ok := l.m[idx]
 	if ok {
@@ -101,7 +98,7 @@ func (l *ListenMap) addIdx(idx lmI, s *lmE) error {
 	return nil
 }
 
-func (l *ListenMap) get(ip net.IP, id uint16) (*lmE, bool) {
+func (l *ListenMap) get(ip net.IP, id uint16) (lmE, bool) {
 	return l.getIdx(toLmI(ip, id))
 }
 
@@ -110,10 +107,10 @@ func (lm *ListenMap) GetCB(ip net.IP, id uint16) func(context.Context, *ping.Pin
 	if !ok {
 		return nil
 	}
-	return lme.cb
+	return lme
 }
 
-func (l *ListenMap) getIdx(idx lmI) (*lmE, bool) {
+func (l *ListenMap) getIdx(idx lmI) (lmE, bool) {
 	l.l.RLock()
 	s, ok := l.m[idx]
 	l.l.RUnlock()
