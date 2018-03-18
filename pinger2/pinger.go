@@ -98,17 +98,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 	pktWg := sync.WaitGroup{}
 
 	intervalTick := make(chan time.Time)
-	intervalTicker := func() {
-		for {
-			pktWg.Wait()
-			select {
-			case <-ctx.Done():
-				return
-			case intervalTick <- time.Now():
-			}
-		}
-	}
-
+	var intervalTicker func()
 	if conf.Interval > 0 {
 		intervalTicker = func() {
 			intervalTicker := time.NewTicker(conf.Interval)
@@ -118,6 +108,17 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 				case <-ctx.Done():
 					return
 				case intervalTick <- <-intervalTicker.C:
+				}
+			}
+		}
+	} else {
+		intervalTicker = func() {
+			for {
+				pktWg.Wait()
+				select {
+				case <-ctx.Done():
+					return
+				case intervalTick <- time.Now():
 				}
 			}
 		}
@@ -175,17 +176,13 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 				if conf.RetryOnResolveError {
 					go cb(p.p, err)
 					dst = nil
-					if conf.Interval == 0 {
-						go func() { intervalTick <- time.Now() }()
-					}
 					continue
 				}
 				return err
 			}
 
-			// IP changed
-			if !nDst.IP.Equal(dst.IP) {
-				if lCancel != nil {
+			if !nDst.IP.Equal(dst.IP) { // IP changed
+				if lCancel != nil { // cancel the current listener
 					lCancel()
 					lCancel = nil
 				}
@@ -195,17 +192,17 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		p.p.Dst = dst.IP
 		p.p.Src = c.lm.SrcAddr(dst.IP)
 
-		if lCancel == nil {
+		if lCancel == nil { // we don't have a listner yet for this dst
 			// Register with listenmap
 			var lctx context.Context
 			lctx, lCancel = context.WithCancel(ctx)
 			err = c.lm.Add(lctx, dst.IP, id, pendingCb)
+			if err == listenMap.ErrAlreadyExists { // we already have this listener registered
+				id = 0 // try a different id
+				lCancel = nil
+				continue
+			}
 			if err != nil {
-				if _, ok := err.(*listenMap.ErrAlreadyExists); ok {
-					id = 0
-					lCancel = nil
-					continue
-				}
 				return err
 			}
 		}
@@ -225,6 +222,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		pending[seq] = p
 		pendingLock.Unlock()
 
+		pktWg.Add(1)
 		err = c.lm.Send(p.p, dst)
 		if err != nil {
 			pendingLock.Lock()
@@ -232,19 +230,17 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			pendingLock.Unlock()
 			if conf.RetryOnSendError {
 				go cb(p.p, err)
-				if conf.Interval == 0 {
-					go func() { intervalTick <- time.Now() }()
-				}
+				pktWg.Done()
 				continue
 			}
+			pktWg.Done()
 			return err
 		}
 
-		pktWg.Add(1)
 		go func() {
 			defer pktWg.Done()
 			<-pCtx.Done()
-			if pCtx.Err() != context.DeadlineExceeded {
+			if pCtx.Err() != context.DeadlineExceeded { // this was canceled, probably by being recieved
 				return
 			}
 
@@ -252,7 +248,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			_, ok := pending[seq]
 			delete(pending, seq)
 			pendingLock.Unlock()
-			if !ok {
+			if !ok { // this packet was already removed from the map, maybe it was recieved just in time
 				return
 			}
 			cb(p.p, pCtx.Err())

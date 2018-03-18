@@ -3,6 +3,7 @@ package listenMap
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"net"
 	"sync"
 
@@ -45,11 +46,7 @@ func (l *ListenMap) getL(ip net.IP) *listener.Listener {
 	return l.v6l
 }
 
-type ErrAlreadyExists struct{}
-
-func (a *ErrAlreadyExists) Error() string {
-	return "already exists"
-}
+var ErrAlreadyExists = errors.New("listener already exists")
 
 func (lm *ListenMap) Send(p *ping.Ping, dst net.Addr) error {
 	return lm.getL(p.Dst).Send(p, dst)
@@ -89,7 +86,7 @@ func (l *ListenMap) addIdx(idx index, s callback) error {
 	_, ok := l.m[idx]
 	if ok {
 		l.l.Unlock()
-		return &ErrAlreadyExists{}
+		return ErrAlreadyExists
 	}
 	l.m[idx] = s
 	l.l.Unlock()
