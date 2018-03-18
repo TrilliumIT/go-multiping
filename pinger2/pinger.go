@@ -17,9 +17,6 @@ func init() {
 
 // PingConf holds optional coniguration parameters
 type PingConf struct {
-	// Ctx is an optional context which can be used to cancel or timeout the ping operation
-	Ctx context.Context
-
 	// Count is how many pings will be attempted
 	// 0 for unlimited pings
 	Count int
@@ -47,7 +44,6 @@ type PingConf struct {
 
 func DefaultPingConf() *PingConf {
 	return &PingConf{
-		Ctx:      context.Background(),
 		Interval: time.Second,
 		Timeout:  time.Second,
 	}
@@ -56,9 +52,6 @@ func DefaultPingConf() *PingConf {
 func (p *PingConf) validate() *PingConf {
 	if p == nil {
 		p = DefaultPingConf()
-	}
-	if p.Ctx == nil {
-		p.Ctx = context.Background()
 	}
 	return p
 }
@@ -75,7 +68,20 @@ func Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
 	return DefaultConn().Ping(host, cb, conf)
 }
 
-// Ping starts a new ping to host calling cb every time a reply is recieved or a packet times out
+// PingWithContext starts a ping using the global conn
+// see Conn.PingWithContext for details
+func PingWithContext(ctx context.Context, host string, cb func(*ping.Ping, error), conf *PingConf) error {
+	return DefaultConn().PingWithContext(ctx, host, cb, conf)
+}
+
+// Ping starts a ping. See PingWithContext for details
+func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	return c.PingWithContext(ctx, host, cb, conf)
+}
+
+// PingWithContext starts a new ping to host calling cb every time a reply is recieved or a packet times out
 // Timed out packets will return an error of context.DeadlineExceeded to cb
 // Ping will send up to count pings, or unlimited if count is 0
 // Ping will send a ping each interval. If interval is 0 ping will flood ping, sending a new packet as soon
@@ -84,22 +90,12 @@ func Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
 // With a disabled, or very long timeout and a short interval the packet sequence may rollover and try to reuse
 // a packet sequence before the last packet sent with that sequence is recieved. If this happens, the callback or the
 // first packet sent will be triggered with an error of context.Canceled
-func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
+func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.Ping, error), conf *PingConf) error {
 	conf = conf.validate()
 
 	pendingLock := sync.Mutex{}
 	pending := make(map[uint16]*pendingPkt)
 	pktWg := sync.WaitGroup{}
-
-	ctx, cancel := context.WithCancel(conf.Ctx)
-	defer cancel()
-	go func() {
-		select {
-		case <-c.ctx.Done():
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
 
 	intervalTick := make(chan time.Time)
 	intervalTicker := func() {
@@ -112,6 +108,7 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 			}
 		}
 	}
+
 	if conf.Interval > 0 {
 		intervalTicker = func() {
 			intervalTicker := time.NewTicker(conf.Interval)
