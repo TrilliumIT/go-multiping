@@ -2,6 +2,7 @@ package pinger
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"net"
 	"sync"
@@ -59,7 +60,12 @@ func (p *PingConf) validate() *PingConf {
 type pendingPkt struct {
 	cancel func()
 	p      *ping.Ping
+	l      sync.Mutex
+	err    error
 }
+
+var ErrTimedOut = errors.New("ping timed out")
+var ErrSeqWrapped = errors.New("response not recieved before sequence wrapped")
 
 // Ping starts a ping using the global conn
 // see Conn.Ping for details
@@ -93,11 +99,14 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.Ping, error), conf *PingConf) error {
 	conf = conf.validate()
 
-	pendingLock := sync.Mutex{}
-	pending := make(map[uint16]*pendingPkt)
+	pm := &pendingMap{
+		m: make(map[uint16]*pendingPkt),
+		l: sync.Mutex{},
+	}
 	pktWg := sync.WaitGroup{}
 
 	intervalTick := make(chan time.Time)
+	intervalCtx, intervalCancel := context.WithCancel(ctx)
 	var intervalTicker func()
 	if conf.Interval > 0 {
 		intervalTicker = func() {
@@ -105,9 +114,10 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			defer intervalTicker.Stop()
 			for {
 				select {
-				case <-ctx.Done():
+				case <-intervalCtx.Done():
 					return
 				case intervalTick <- <-intervalTicker.C:
+					pktWg.Add(1)
 				}
 			}
 		}
@@ -116,9 +126,10 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			for {
 				pktWg.Wait()
 				select {
-				case <-ctx.Done():
+				case <-intervalCtx.Done():
 					return
 				case intervalTick <- time.Now():
+					pktWg.Add(1)
 				}
 			}
 		}
@@ -127,17 +138,17 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 
 	pendingCb := func(ctx context.Context, p *ping.Ping) {
 		seq := uint16(p.Seq)
-		pendingLock.Lock()
-		pp, ok := pending[seq]
-		delete(pending, seq)
-		pendingLock.Unlock()
+		pp, ok := pm.get(seq)
 		if !ok {
 			return
 		}
-		// cancel the timeout thread, which ends the waitgroup
-		pp.cancel()
+
+		pp.l.Lock()
 		pp.p.UpdateFrom(p)
-		cb(pp.p, nil)
+		pp.l.Unlock()
+
+		// cancel the timeout thread, will call cb and done() the waitgroup
+		pp.cancel()
 	}
 
 	var id, seq uint16
@@ -156,29 +167,34 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			return nil
 		case <-intervalTick:
 		}
+		// pktWg.Add(1) this is done before intervalTick
 
+		if id == 0 {
+			id = uint16(rand.Intn(1<<16-2) + 1)
+		}
 		seq = uint16(sent)
 		p := &pendingPkt{p: &ping.Ping{
 			Host:    host,
+			ID:      int(id),
 			Seq:     int(seq),
 			TimeOut: conf.Timeout,
 		}}
-
-		if id == 0 {
-			id = uint16(rand.Intn(1<<16 - 1))
-		}
-		p.p.ID = int(id)
+		p.l.Lock()
+		var pCtx context.Context
+		pCtx, p.cancel = context.WithCancel(ctx)
 
 		if dst == nil || (conf.ReResolveEvery != 0 && sent%conf.ReResolveEvery == 0) {
 			var nDst *net.IPAddr
-			nDst, err = net.ResolveIPAddr("ip", host)
-			if err != nil {
+			nDst, p.err = net.ResolveIPAddr("ip", host)
+			if p.err != nil {
+				p.l.Unlock()
+				p.cancel()
 				if conf.RetryOnResolveError {
-					go cb(p.p, err)
-					dst = nil
+					go p.wait(pCtx, pm, cb, pktWg.Done)
 					continue
 				}
-				return err
+				pktWg.Done()
+				return p.err
 			}
 
 			if !nDst.IP.Equal(dst.IP) { // IP changed
@@ -197,64 +213,91 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			var lctx context.Context
 			lctx, lCancel = context.WithCancel(ctx)
 			err = c.lm.Add(lctx, dst.IP, id, pendingCb)
-			if err == listenMap.ErrAlreadyExists { // we already have this listener registered
-				id = 0 // try a different id
-				lCancel = nil
-				continue
-			}
 			if err != nil {
+				p.l.Unlock()
+				p.cancel()
+				pktWg.Done()                           // we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
+				if err == listenMap.ErrAlreadyExists { // we already have this listener registered
+					id = 0 // try a different id
+					lCancel = nil
+					continue
+				}
 				return err
 			}
 		}
 
-		var pCtx context.Context
-		// add to pending map
-		if conf.Timeout > 0 {
-			pCtx, p.cancel = context.WithTimeout(ctx, conf.Timeout)
-		} else {
-			pCtx, p.cancel = context.WithCancel(ctx)
-		}
-		pendingLock.Lock()
-		if opp, ok := pending[seq]; ok {
+		if opp, ok := pm.add(p); ok {
 			// we've looped seq and this old pending packet is still hanging around, cancel it
+			opp.l.Lock()
+			opp.err = ErrSeqWrapped
+			opp.l.Unlock()
 			opp.cancel()
 		}
-		pending[seq] = p
-		pendingLock.Unlock()
 
-		pktWg.Add(1)
-		err = c.lm.Send(p.p, dst)
-		if err != nil {
-			pendingLock.Lock()
-			delete(pending, seq)
-			pendingLock.Unlock()
+		p.err = c.lm.Send(p.p, dst)
+
+		if p.err != nil {
+			p.l.Unlock()
+			p.cancel()
 			if conf.RetryOnSendError {
-				go cb(p.p, err)
-				pktWg.Done()
+				go p.wait(pCtx, pm, cb, pktWg.Done)
 				continue
 			}
 			pktWg.Done()
-			return err
+			return p.err
 		}
 
-		go func() {
-			defer pktWg.Done()
-			<-pCtx.Done()
-			if pCtx.Err() != context.DeadlineExceeded { // this was canceled, probably by being recieved
-				return
-			}
+		if conf.Timeout > 0 {
+			pCtx, p.cancel = context.WithTimeout(ctx, conf.Timeout)
+		}
 
-			pendingLock.Lock()
-			_, ok := pending[seq]
-			delete(pending, seq)
-			pendingLock.Unlock()
-			if !ok { // this packet was already removed from the map, maybe it was recieved just in time
-				return
-			}
-			cb(p.p, pCtx.Err())
-		}()
+		p.l.Unlock()
+		go p.wait(pCtx, pm, cb, pktWg.Done)
 	}
 
+	intervalCancel()
 	pktWg.Wait()
 	return nil
+}
+
+type pendingMap struct {
+	m map[uint16]*pendingPkt
+	l sync.Mutex
+}
+
+// add returns the previous pendingPkt at this sequence if one existed
+func (p *pendingMap) add(pp *pendingPkt) (*pendingPkt, bool) {
+	p.l.Lock()
+	opp, ok := p.m[uint16(pp.p.Seq)]
+	p.m[uint16(pp.p.Seq)] = pp
+	p.l.Unlock()
+	return opp, ok
+}
+
+// del returns false if the item didn't exist
+func (p *pendingMap) del(seq uint16) {
+	p.l.Lock()
+	delete(p.m, seq)
+	p.l.Unlock()
+}
+
+func (p *pendingMap) get(seq uint16) (*pendingPkt, bool) {
+	p.l.Lock()
+	opp, ok := p.m[seq]
+	p.l.Unlock()
+	return opp, ok
+}
+
+func (p *pendingPkt) wait(ctx context.Context, pm *pendingMap, cb func(*ping.Ping, error), done func()) {
+	<-ctx.Done()
+	p.l.Lock()
+	pm.del(uint16(p.p.Seq))
+	if ctx.Err() == context.DeadlineExceeded && p.err == nil {
+		p.err = ErrTimedOut
+	}
+
+	cb(p.p, p.err)
+	p.l.Unlock()
+
+	done()
 }
