@@ -11,13 +11,13 @@ import (
 )
 
 // listen map index
-type lmI [18]byte
+type index [18]byte
 
 // listen map entry
-type lmE func(context.Context, *ping.Ping)
+type callback func(context.Context, *ping.Ping)
 
-func toLmI(ip net.IP, id uint16) lmI {
-	var r lmI
+func toIndex(ip net.IP, id uint16) index {
+	var r index
 	copy(r[0:16], ip.To16())
 	binary.LittleEndian.PutUint16(r[16:], id)
 	return r
@@ -25,17 +25,15 @@ func toLmI(ip net.IP, id uint16) lmI {
 
 func NewListenMap(ctx context.Context) *ListenMap {
 	return &ListenMap{
-		ctx: ctx,
-		m:   make(map[lmI]lmE),
+		m:   make(map[index]callback),
 		v4l: listener.New(4),
 		v6l: listener.New(6),
 	}
 }
 
 type ListenMap struct {
-	m   map[lmI]lmE
+	m   map[index]callback
 	l   sync.RWMutex
-	ctx context.Context
 	v4l *listener.Listener
 	v6l *listener.Listener
 }
@@ -65,8 +63,8 @@ func (lm *ListenMap) Add(ctx context.Context, ip net.IP, id uint16, cb func(cont
 	return lm.add(ctx, ip, id, cb)
 }
 
-func (lm *ListenMap) add(ctx context.Context, ip net.IP, id uint16, cb lmE) error {
-	idx := toLmI(ip, id)
+func (lm *ListenMap) add(ctx context.Context, ip net.IP, id uint16, cb callback) error {
+	idx := toIndex(ip, id)
 	err := lm.addIdx(idx, cb)
 	if err != nil {
 		return err
@@ -86,7 +84,7 @@ func (lm *ListenMap) add(ctx context.Context, ip net.IP, id uint16, cb lmE) erro
 	return l.Run(lm.GetCB)
 }
 
-func (l *ListenMap) addIdx(idx lmI, s lmE) error {
+func (l *ListenMap) addIdx(idx index, s callback) error {
 	l.l.Lock()
 	_, ok := l.m[idx]
 	if ok {
@@ -98,8 +96,8 @@ func (l *ListenMap) addIdx(idx lmI, s lmE) error {
 	return nil
 }
 
-func (l *ListenMap) get(ip net.IP, id uint16) (lmE, bool) {
-	return l.getIdx(toLmI(ip, id))
+func (l *ListenMap) get(ip net.IP, id uint16) (callback, bool) {
+	return l.getIdx(toIndex(ip, id))
 }
 
 func (lm *ListenMap) GetCB(ip net.IP, id uint16) func(context.Context, *ping.Ping) {
@@ -110,7 +108,7 @@ func (lm *ListenMap) GetCB(ip net.IP, id uint16) func(context.Context, *ping.Pin
 	return lme
 }
 
-func (l *ListenMap) getIdx(idx lmI) (lmE, bool) {
+func (l *ListenMap) getIdx(idx index) (callback, bool) {
 	l.l.RLock()
 	s, ok := l.m[idx]
 	l.l.RUnlock()
@@ -118,10 +116,10 @@ func (l *ListenMap) getIdx(idx lmI) (lmE, bool) {
 }
 
 func (l *ListenMap) del(ip net.IP, id uint16) {
-	l.delIdx(toLmI(ip, id))
+	l.delIdx(toIndex(ip, id))
 }
 
-func (l *ListenMap) delIdx(idx lmI) {
+func (l *ListenMap) delIdx(idx index) {
 	l.l.Lock()
 	delete(l.m, idx)
 	l.l.Unlock()
