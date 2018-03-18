@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -76,38 +77,36 @@ func main() {
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
 
-	var wg sync.WaitGroup
-	var stops []func()
-	for _, h := range flag.Args() {
-		d := pinger.NewDst(h, *interval, *timeout, *count, callBack)
-		if *reResolve {
-			d.EnableReResolve()
-		}
-		if *randDelay {
-			d.EnableRandDelay()
-		}
-		d.EnableReSend()
+	conf := pinger.DefaultPingConf()
+	conf.RetryOnResolveError = *reResolve
+	if *reResolve {
+		conf.ReResolveEvery = 1
+	}
+	conf.Interval = *interval
+	conf.Timeout = *timeout
+	conf.Count = *count
+	conf.RandDelay = *randDelay
+	conf.RetryOnSendError = true
 
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var wg sync.WaitGroup
+	for _, h := range flag.Args() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := d.Run()
+			err := pinger.PingWithContext(ctx, h, callBack, conf)
 			if err != nil {
 				panic(err)
 			}
 		}()
-		stops = append(stops, d.Stop)
 	}
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		//pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
-		for _, s := range stops {
-			go s()
-		}
-
+		cancel()
 		go func() {
 			time.Sleep(30 * time.Second)
 			_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
