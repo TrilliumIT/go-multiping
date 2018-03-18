@@ -108,10 +108,9 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 	}
 	pktWg := sync.WaitGroup{}
 
-	cont := make(chan struct{})
-	intervalTick := make(intervalTicker)
+	intervalTick := newIntervalTicker(conf.Interval, conf.RandDelay, pktWg.Wait)
 	intervalCtx, intervalCancel := context.WithCancel(ctx)
-	go intervalTick.run(intervalCtx, conf.Interval, conf.RandDelay, pktWg.Wait, cont)
+	go intervalTick.run(intervalCtx)
 
 	var id, seq uint16
 	var dst *net.IPAddr
@@ -127,14 +126,11 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-intervalTick:
+		case <-intervalTick.C:
 		}
 
 		pktWg.Add(1)
-		select {
-		case cont <- struct{}{}:
-		default:
-		}
+		intervalTick.Cont()
 
 		if id == 0 {
 			id = uint16(rand.Intn(1<<16-2) + 1)
@@ -290,38 +286,55 @@ func (pm *pendingMap) onRecv(ctx context.Context, p *ping.Ping) {
 	pp.cancel()
 }
 
-type intervalTicker chan time.Time
+type intervalTicker struct {
+	C         chan time.Time
+	interval  time.Duration
+	randDelay bool
+	wait      func()
+	Cont      func()
+}
 
-func (it intervalTicker) run(ctx context.Context, interval time.Duration, randDelay bool, wait func(), cont <-chan struct{}) {
-	if interval > 0 {
-		if randDelay {
-			ft := time.NewTimer(time.Duration(rand.Int63n(interval.Nanoseconds())))
+func newIntervalTicker(interval time.Duration, randDelay bool, wait func()) *intervalTicker {
+	return &intervalTicker{
+		C:         make(chan time.Time),
+		interval:  interval,
+		randDelay: randDelay,
+		wait:      wait,
+		Cont:      func() {},
+	}
+}
+
+func (it *intervalTicker) run(ctx context.Context) {
+	if it.interval > 0 {
+		if it.randDelay {
+			ft := time.NewTimer(time.Duration(rand.Int63n(it.interval.Nanoseconds())))
 			select {
 			case <-ctx.Done():
 				ft.Stop()
 				return
-			case it <- <-ft.C:
+			case it.C <- <-ft.C:
 			}
 			ft.Stop()
 		}
-
-		t := time.NewTicker(interval)
+		t := time.NewTicker(it.interval)
 		defer t.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case it <- <-t.C:
+			case it.C <- <-t.C:
 			}
 		}
 	}
 
+	cont := make(chan struct{})
+	it.Cont = func() { cont <- struct{}{} }
 	for {
-		wait()
+		it.wait()
 		select {
 		case <-ctx.Done():
 			return
-		case it <- time.Now():
+		case it.C <- time.Now():
 		}
 
 		select {
