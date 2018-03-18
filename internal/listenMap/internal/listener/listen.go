@@ -18,7 +18,6 @@ type Listener struct {
 	l     sync.RWMutex
 	dead  chan struct{}
 	wg    sync.WaitGroup
-	ctx   context.Context
 	conn  *icmp.PacketConn
 	Props *messages.Props
 }
@@ -105,9 +104,8 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 		return err
 	}
 
-	var cancel func()
 	// this is not inheriting a context. Each ip has a context, which will decrement the waitgroup when it's done.
-	l.ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		for {
 			l.wg.Wait()
@@ -131,7 +129,7 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 		defer close(l.dead)
 		for {
 			select {
-			case <-l.ctx.Done():
+			case <-ctx.Done():
 				return
 			default:
 			}
@@ -143,7 +141,7 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 				continue
 			}
 			r.Recieved = time.Now()
-			go process.ProcessMessage(l.ctx, r, getCb)
+			go process.ProcessMessage(ctx, r, getCb)
 		}
 	}()
 	return nil
