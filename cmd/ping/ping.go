@@ -17,7 +17,7 @@ import (
 var usage = `
 Usage:
 
-    ping [-c count] [-i interval] [-t timeout] [-r] [-d] host host2 host3
+    ping [-c count] [-i interval] [-t timeout] [-w workers] [-b buffersize] [-r] [-d] host host2 host3
 
 Examples:
 
@@ -38,6 +38,8 @@ func main() {
 	timeout := flag.Duration("t", time.Second, "")
 	interval := flag.Duration("i", time.Second, "")
 	count := flag.Int("c", 0, "")
+	workers := flag.Int("w", 0, "")
+	buffer := flag.Int("b", 0, "")
 	reResolve := flag.Bool("r", false, "")
 	randDelay := flag.Bool("d", false, "")
 	flag.Usage = func() {
@@ -55,29 +57,24 @@ func main() {
 
 	callBack := func(pkt *ping.Ping, err error) {
 		clock.Lock()
-		if err != nil {
-			errored++
-		} else {
-			if pkt.IsRecieved() && !pkt.IsTimedOut() {
-				recieved++
-			} else {
-				dropped++
-			}
-		}
-		clock.Unlock()
-		if err != nil {
-			fmt.Printf("Packet errored from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
-		}
-		if pkt.IsRecieved() {
+		defer clock.Unlock()
+		if err == nil {
+			recieved++
 			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
+			return
 		}
-		if pkt.IsTimedOut() {
+
+		dropped++
+		if err == pinger.ErrTimedOut {
 			fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+			return
 		}
-		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
+
+		fmt.Printf("Packet errored from %v seq: %v id: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, err)
 	}
 
-	pinger.DefaultConn().SetWorkers(4)
+	pinger.DefaultConn().SetWorkers(*workers)
+	pinger.DefaultConn().SetBuffer(*buffer)
 	conf := pinger.DefaultPingConf()
 	conf.RetryOnResolveError = *reResolve
 	if *reResolve {
@@ -94,13 +91,13 @@ func main() {
 	var wg sync.WaitGroup
 	for _, h := range flag.Args() {
 		wg.Add(1)
-		go func() {
+		go func(h string) {
 			defer wg.Done()
 			err := pinger.PingWithContext(ctx, h, callBack, conf)
 			if err != nil {
 				panic(err)
 			}
-		}()
+		}(h)
 	}
 
 	c := make(chan os.Signal, 1)
@@ -116,5 +113,8 @@ func main() {
 	}()
 
 	wg.Wait()
+	clock.Lock()
+	defer clock.Unlock()
+	fmt.Printf("%v recieved, %v dropped, %v errored\n", recieved, dropped, errored)
 
 }

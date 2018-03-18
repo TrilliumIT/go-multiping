@@ -108,9 +108,10 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 	}
 	pktWg := sync.WaitGroup{}
 
+	cont := make(chan struct{})
 	intervalTick := make(intervalTicker)
 	intervalCtx, intervalCancel := context.WithCancel(ctx)
-	go intervalTick.run(intervalCtx, conf.Interval, conf.RandDelay, &pktWg)
+	go intervalTick.run(intervalCtx, conf.Interval, conf.RandDelay, pktWg.Wait, cont)
 
 	var id, seq uint16
 	var dst *net.IPAddr
@@ -128,7 +129,12 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			return nil
 		case <-intervalTick:
 		}
-		// pktWg.Add(1) this is done before intervalTick
+
+		pktWg.Add(1)
+		select {
+		case cont <- struct{}{}:
+		default:
+		}
 
 		if id == 0 {
 			id = uint16(rand.Intn(1<<16-2) + 1)
@@ -286,7 +292,7 @@ func (pm *pendingMap) onRecv(ctx context.Context, p *ping.Ping) {
 
 type intervalTicker chan time.Time
 
-func (it intervalTicker) run(ctx context.Context, interval time.Duration, randDelay bool, wg *sync.WaitGroup) {
+func (it intervalTicker) run(ctx context.Context, interval time.Duration, randDelay bool, wait func(), cont <-chan struct{}) {
 	if interval > 0 {
 		if randDelay {
 			ft := time.NewTimer(time.Duration(rand.Int63n(interval.Nanoseconds())))
@@ -295,9 +301,8 @@ func (it intervalTicker) run(ctx context.Context, interval time.Duration, randDe
 				ft.Stop()
 				return
 			case it <- <-ft.C:
-				wg.Add(1)
-				ft.Stop()
 			}
+			ft.Stop()
 		}
 
 		t := time.NewTicker(interval)
@@ -307,18 +312,22 @@ func (it intervalTicker) run(ctx context.Context, interval time.Duration, randDe
 			case <-ctx.Done():
 				return
 			case it <- <-t.C:
-				wg.Add(1)
 			}
 		}
 	}
 
 	for {
-		wg.Wait()
+		wait()
 		select {
 		case <-ctx.Done():
 			return
 		case it <- time.Now():
-			wg.Add(1)
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-cont:
 		}
 	}
 }

@@ -38,6 +38,7 @@ type ListenMap struct {
 	v4l     *listener.Listener
 	v6l     *listener.Listener
 	workers int
+	buffer  int
 }
 
 func (l *ListenMap) getL(ip net.IP) *listener.Listener {
@@ -79,11 +80,15 @@ func (lm *ListenMap) add(ctx context.Context, ip net.IP, id uint16, cb callback)
 		return nil
 	}
 
-	return l.Run(lm.GetCB, lm.workers)
+	return l.Run(lm.GetCB, lm.workers, lm.buffer)
 }
 
 func (lm *ListenMap) SetWorkers(n int) {
 	lm.workers = n
+}
+
+func (lm *ListenMap) SetBuffer(n int) {
+	lm.buffer = n
 }
 
 func (l *ListenMap) addIdx(idx index, s callback) error {

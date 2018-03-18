@@ -28,6 +28,14 @@ func (c *Conn) SetWorkers(n int) {
 	c.lm.SetWorkers(n)
 }
 
+// SetBuffer sets the buffer size for incoming packets being sent to workers
+// At zero there is no buffer, and if the workers are not ready to process
+// no new packets will be recieved until it is.
+// This change will not take effect until all running pings on Conn are stopped
+func (c *Conn) SetBuffer(n int) {
+	c.lm.SetBuffer(n)
+}
+
 var conn *Conn
 var connLock sync.RWMutex
 

@@ -84,7 +84,7 @@ func (l *Listener) WgDone() {
 	l.ipWg.Done()
 }
 
-func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Ping), workers int) error {
+func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Ping), workers int, buffer int) error {
 	l.l.Lock()
 	defer l.l.Unlock()
 	if l.usRunning() {
@@ -127,7 +127,7 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 	}()
 
 	// start workers
-	wCh := make(chan *procMsg)
+	wCh := make(chan *procMsg, buffer)
 	proc := processMessage
 	if workers == 0 {
 		proc = func(p *procMsg) { go processMessage(p) }
