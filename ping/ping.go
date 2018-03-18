@@ -56,11 +56,19 @@ func (p *Ping) UpdateFrom(p2 *Ping) {
 		p.Host = p2.Host
 	}
 
-	if p2.Src != nil && (p.Src == nil || (p.Src.IsUnspecified() && !p2.Src.IsUnspecified())) {
+	if p.Src == nil && p2.Src != nil {
 		p.Src = p2.Src
 	}
 
-	if p2.Dst != nil && (p.Dst == nil || (p.Dst.IsUnspecified() && !p2.Dst.IsUnspecified())) {
+	if p.Src.IsUnspecified() && !p2.Src.IsUnspecified() {
+		p.Src = p2.Src
+	}
+
+	if p.Dst == nil && p2.Dst != nil {
+		p.Dst = p2.Dst
+	}
+
+	if p.Dst.IsUnspecified() && !p2.Dst.IsUnspecified() {
 		p.Dst = p2.Dst
 	}
 

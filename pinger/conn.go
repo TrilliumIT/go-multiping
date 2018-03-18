@@ -2,13 +2,10 @@ package pinger
 
 import (
 	"context"
+	"sync"
 
 	"github.com/TrilliumIT/go-multiping/internal/listenMap"
 )
-
-func init() {
-	connCreated = make(chan struct{})
-}
 
 // Conn is a raw socket connection (one for ipv4 and one for ipv6). Connections are only actively listening when there are active pings going on
 // Conn must be created via NewConn or NewConnWithContext
@@ -18,17 +15,24 @@ type Conn struct {
 }
 
 var conn *Conn
-var connCreated chan struct{}
+var connLock sync.RWMutex
 
 // DefaultConn is the default global conn used by the pinger package
 func DefaultConn() *Conn {
-	select {
-	case <-connCreated:
+	connLock.RLock()
+	if conn != nil {
+		connLock.RUnlock()
 		return conn
-	default:
+	}
+
+	connLock.RUnlock()
+	connLock.Lock()
+	if conn != nil {
+		connLock.Unlock()
+		return conn
 	}
 	conn = NewConn()
-	close(connCreated)
+	connLock.Unlock()
 	return conn
 }
 

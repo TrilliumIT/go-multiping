@@ -54,6 +54,7 @@ func main() {
 	var clock sync.Mutex
 
 	callBack := func(pkt *ping.Ping, err error) {
+		fmt.Printf("%#v - %#v\n", err, pkt)
 		clock.Lock()
 		if err != nil {
 			errored++
