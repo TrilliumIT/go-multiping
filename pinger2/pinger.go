@@ -131,6 +131,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			id = uint16(rand.Intn(1<<16-2) + 1)
 		}
 		seq = uint16(sent)
+
 		p := &pendingPkt{p: &ping.Ping{
 			Host:    host,
 			ID:      int(id),
@@ -145,8 +146,8 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			var nDst *net.IPAddr
 			nDst, p.err = net.ResolveIPAddr("ip", host)
 			if p.err != nil {
-				p.l.Unlock()
 				p.cancel()
+				p.l.Unlock()
 				if conf.RetryOnResolveError {
 					go p.wait(pCtx, pm, cb, pktWg.Done)
 					continue
@@ -172,11 +173,13 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			lctx, lCancel = context.WithCancel(ctx)
 			err = c.lm.Add(lctx, dst.IP, id, pm.onRecv)
 			if err != nil {
-				p.l.Unlock()
 				p.cancel()
-				pktWg.Done()                           // we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
+				p.l.Unlock()
+				pktWg.Done() // we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
+
 				if err == listenMap.ErrAlreadyExists { // we already have this listener registered
 					id = 0 // try a different id
+					lCancel()
 					lCancel = nil
 					continue
 				}
@@ -188,15 +191,15 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			// we've looped seq and this old pending packet is still hanging around, cancel it
 			opp.l.Lock()
 			opp.err = ErrSeqWrapped
-			opp.l.Unlock()
 			opp.cancel()
+			opp.l.Unlock()
 		}
 
 		p.err = c.lm.Send(p.p, dst)
 
 		if p.err != nil {
-			p.l.Unlock()
 			p.cancel()
+			p.l.Unlock()
 			if conf.RetryOnSendError {
 				go p.wait(pCtx, pm, cb, pktWg.Done)
 				continue
@@ -206,6 +209,9 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		}
 
 		if conf.Timeout > 0 {
+			// we're not running wait yet, so nothing is waiting on this ctx, we're replacing it with one with a timeout now
+			// but canceling is a good idea to release resources from the previous ctx
+			p.cancel()
 			pCtx, p.cancel = context.WithTimeout(ctx, conf.Timeout)
 		}
 
