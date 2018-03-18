@@ -16,7 +16,7 @@ type Listener struct {
 	proto int
 	l     sync.RWMutex
 	dead  chan struct{}
-	wg    sync.WaitGroup
+	ipWg  sync.WaitGroup
 	conn  *icmp.PacketConn
 	Props *messages.Props
 }
@@ -53,8 +53,8 @@ func (l *Listener) Send(p *ping.Ping, dst net.Addr) error {
 	if !l.usRunning() {
 		return &ErrNotRunning{}
 	}
-	l.wg.Add(1)
-	defer l.wg.Done()
+	l.ipWg.Add(1)
+	defer l.ipWg.Done()
 	// TODO the rest of the send
 	p.Sent = time.Now()
 	b, err := p.ToICMPMsg()
@@ -76,15 +76,15 @@ func (l *Listener) usRunning() bool {
 
 func (l *Listener) WgAdd(delta int) {
 	l.l.RLock()
-	l.wg.Add(delta)
+	l.ipWg.Add(delta)
 	l.l.RUnlock()
 }
 
 func (l *Listener) WgDone() {
-	l.wg.Done()
+	l.ipWg.Done()
 }
 
-func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Ping)) error {
+func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Ping), workers int) error {
 	l.l.Lock()
 	defer l.l.Unlock()
 	if l.usRunning() {
@@ -105,12 +105,13 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 
 	// this is not inheriting a context. Each ip has a context, which will decrement the waitgroup when it's done.
 	ctx, cancel := context.WithCancel(context.Background())
+	wWg := sync.WaitGroup{}
 	go func() {
 		for {
-			l.wg.Wait()
+			l.ipWg.Wait()
 			l.l.Lock()
 			wgC := make(chan struct{})
-			go func() { l.wg.Wait(); close(wgC) }()
+			go func() { l.ipWg.Wait(); close(wgC) }()
 			select {
 			case <-wgC:
 			default:
@@ -119,13 +120,37 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 			}
 			_ = l.conn.Close()
 			cancel()
-			<-l.dead
+			wWg.Wait()
+			close(l.dead)
 			l.l.Unlock()
 		}
 	}()
 
+	// start workers
+	wCh := make(chan *procMsg)
+	proc := processMessage
+	if workers == 0 {
+		proc = func(p *procMsg) { go processMessage(p) }
+		workers = 1
+	}
+	wWg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wWg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case p := <-wCh:
+					proc(p)
+				}
+			}
+		}()
+	}
+
+	wWg.Add(1)
 	go func() {
-		defer close(l.dead)
+		defer wWg.Done()
 		for {
 			select {
 			case <-ctx.Done():
@@ -140,22 +165,28 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 				continue
 			}
 			r.Recieved = time.Now()
-			go processMessage(ctx, r, getCb)
+			wCh <- &procMsg{ctx, r, getCb}
 		}
 	}()
 	return nil
 }
 
-func processMessage(ctx context.Context, r *messages.RecvMsg, getCb func(net.IP, uint16) func(context.Context, *ping.Ping)) {
-	p := r.ToPing()
+type procMsg struct {
+	ctx   context.Context
+	r     *messages.RecvMsg
+	getCb func(net.IP, uint16) func(context.Context, *ping.Ping)
+}
+
+func processMessage(pm *procMsg) {
+	p := pm.r.ToPing()
 	if p == nil {
 		return
 	}
 
-	cb := getCb(p.Dst, uint16(p.ID))
+	cb := pm.getCb(p.Dst, uint16(p.ID))
 	if cb == nil {
 		return
 	}
 
-	cb(ctx, p)
+	cb(pm.ctx, p)
 }

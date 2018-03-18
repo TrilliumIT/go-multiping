@@ -77,6 +77,7 @@ func main() {
 		fmt.Printf("%v recieved, %v dropped\n", recieved, dropped)
 	}
 
+	pinger.DefaultConn().SetWorkers(4)
 	conf := pinger.DefaultPingConf()
 	conf.RetryOnResolveError = *reResolve
 	if *reResolve {

@@ -24,7 +24,7 @@ func toIndex(ip net.IP, id uint16) index {
 	return r
 }
 
-func NewListenMap(ctx context.Context) *ListenMap {
+func NewListenMap() *ListenMap {
 	return &ListenMap{
 		m:   make(map[index]callback),
 		v4l: listener.New(4),
@@ -33,10 +33,11 @@ func NewListenMap(ctx context.Context) *ListenMap {
 }
 
 type ListenMap struct {
-	m   map[index]callback
-	l   sync.RWMutex
-	v4l *listener.Listener
-	v6l *listener.Listener
+	m       map[index]callback
+	l       sync.RWMutex
+	v4l     *listener.Listener
+	v6l     *listener.Listener
+	workers int
 }
 
 func (l *ListenMap) getL(ip net.IP) *listener.Listener {
@@ -78,7 +79,11 @@ func (lm *ListenMap) add(ctx context.Context, ip net.IP, id uint16, cb callback)
 		return nil
 	}
 
-	return l.Run(lm.GetCB)
+	return l.Run(lm.GetCB, lm.workers)
+}
+
+func (lm *ListenMap) SetWorkers(n int) {
+	lm.workers = n
 }
 
 func (l *ListenMap) addIdx(idx index, s callback) error {
