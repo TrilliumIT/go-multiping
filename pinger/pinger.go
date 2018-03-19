@@ -96,10 +96,7 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.Ping, error), conf *PingConf) error {
 	conf = conf.validate()
 
-	pm := &PendingMap{
-		m: make(map[uint16]*PendingPing),
-		l: sync.Mutex{},
-	}
+	pm := NewMap()
 	pktWg := sync.WaitGroup{}
 
 	tick := ticker.NewTicker(conf.Interval, conf.RandDelay, pktWg.Wait)

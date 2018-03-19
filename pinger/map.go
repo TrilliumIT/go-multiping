@@ -12,6 +12,12 @@ type PendingMap struct {
 	l sync.Mutex
 }
 
+func NewMap() *PendingMap {
+	return &PendingMap{
+		m: make(map[uint16]*PendingPing),
+	}
+}
+
 // Add returns the previous pendingPkt at this sequence if one existed
 func (p *PendingMap) Add(pp *PendingPing) (*PendingPing, bool) {
 	p.l.Lock()
