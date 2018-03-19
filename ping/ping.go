@@ -51,6 +51,7 @@ type Ping struct {
 	Len int
 }
 
+// UpdateFrom is for udpdating a sent ping with attributes from a recieved ping
 func (p *Ping) UpdateFrom(p2 *Ping) {
 	if p.Host == "" {
 		p.Host = p2.Host
@@ -101,32 +102,7 @@ func (p *Ping) UpdateFrom(p2 *Ping) {
 	}
 }
 
-func (p *Ping) TimedOut() time.Time {
-	return p.Sent.Add(p.TimeOut)
-}
-
-func (p *Ping) IsTimedOut() bool {
-	if p.TimeOut == 0 {
-		return false
-	}
-	if !p.Recieved.IsZero() {
-		return p.Recieved.After(p.TimedOut())
-	}
-	return time.Now().After(p.TimedOut())
-}
-
-func (p *Ping) IsSent() bool {
-	return !p.Sent.IsZero()
-}
-
-func (p *Ping) IsRecieved() bool {
-	return !p.Recieved.IsZero()
-}
-
-func (p *Ping) IsPending() bool {
-	return p.IsSent() && !p.IsRecieved() && !p.IsTimedOut()
-}
-
+// RTT returns the RTT of the ping
 func (p *Ping) RTT() time.Duration {
 	if !p.Recieved.Before(p.Sent) {
 		return p.Recieved.Sub(p.Sent)
