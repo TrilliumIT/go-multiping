@@ -24,6 +24,7 @@ func toIndex(ip net.IP, id uint16) index {
 	return r
 }
 
+// NewListenMap returns a new listenmap
 func NewListenMap() *ListenMap {
 	return &ListenMap{
 		m:   make(map[index]callback),
@@ -32,6 +33,7 @@ func NewListenMap() *ListenMap {
 	}
 }
 
+// ListenMap provides protected access to a map of returning addresses and icmp ID to callbacks
 type ListenMap struct {
 	m       map[index]callback
 	l       sync.RWMutex
@@ -41,23 +43,27 @@ type ListenMap struct {
 	buffer  int
 }
 
-func (l *ListenMap) getL(ip net.IP) *listener.Listener {
+func (lm *ListenMap) getL(ip net.IP) *listener.Listener {
 	if ip.To4() != nil {
-		return l.v4l
+		return lm.v4l
 	}
-	return l.v6l
+	return lm.v6l
 }
 
+// ErrAlreadyExists is returned when an entry for an ip/id combination already exists
 var ErrAlreadyExists = errors.New("listener already exists")
 
+// Send sends a ping to dst
 func (lm *ListenMap) Send(p *ping.Ping, dst net.Addr) error {
 	return lm.getL(p.Dst).Send(p, dst)
 }
 
+// SrcAddr returns the source address, 0.0.0.0 or ::
 func (lm *ListenMap) SrcAddr(dst net.IP) net.IP {
 	return lm.getL(dst).Props.SrcIP
 }
 
+// Add adds an ip/id pair to the map. It is removed when ctx is canceled
 func (lm *ListenMap) Add(ctx context.Context, ip net.IP, id uint16, cb func(context.Context, *ping.Ping)) error {
 	return lm.add(ctx, ip, id, cb)
 }
@@ -83,30 +89,33 @@ func (lm *ListenMap) add(ctx context.Context, ip net.IP, id uint16, cb callback)
 	return l.Run(lm.GetCB, lm.workers, lm.buffer)
 }
 
+// SetWorkers sets the number of workers for a given listener
 func (lm *ListenMap) SetWorkers(n int) {
 	lm.workers = n
 }
 
+// SetBuffer sets the size of the buffer for the listener
 func (lm *ListenMap) SetBuffer(n int) {
 	lm.buffer = n
 }
 
-func (l *ListenMap) addIdx(idx index, s callback) error {
-	l.l.Lock()
-	_, ok := l.m[idx]
+func (lm *ListenMap) addIdx(idx index, s callback) error {
+	lm.l.Lock()
+	_, ok := lm.m[idx]
 	if ok {
-		l.l.Unlock()
+		lm.l.Unlock()
 		return ErrAlreadyExists
 	}
-	l.m[idx] = s
-	l.l.Unlock()
+	lm.m[idx] = s
+	lm.l.Unlock()
 	return nil
 }
 
-func (l *ListenMap) get(ip net.IP, id uint16) (callback, bool) {
-	return l.getIdx(toIndex(ip, id))
+func (lm *ListenMap) get(ip net.IP, id uint16) (callback, bool) {
+	return lm.getIdx(toIndex(ip, id))
 }
 
+// GetCB gets the callback for a given ip/id
 func (lm *ListenMap) GetCB(ip net.IP, id uint16) func(context.Context, *ping.Ping) {
 	lme, ok := lm.get(ip, id)
 	if !ok {
@@ -115,19 +124,19 @@ func (lm *ListenMap) GetCB(ip net.IP, id uint16) func(context.Context, *ping.Pin
 	return lme
 }
 
-func (l *ListenMap) getIdx(idx index) (callback, bool) {
-	l.l.RLock()
-	s, ok := l.m[idx]
-	l.l.RUnlock()
+func (lm *ListenMap) getIdx(idx index) (callback, bool) {
+	lm.l.RLock()
+	s, ok := lm.m[idx]
+	lm.l.RUnlock()
 	return s, ok
 }
 
-func (l *ListenMap) del(ip net.IP, id uint16) {
-	l.delIdx(toIndex(ip, id))
+func (lm *ListenMap) del(ip net.IP, id uint16) {
+	lm.delIdx(toIndex(ip, id))
 }
 
-func (l *ListenMap) delIdx(idx index) {
-	l.l.Lock()
-	delete(l.m, idx)
-	l.l.Unlock()
+func (lm *ListenMap) delIdx(idx index) {
+	lm.l.Lock()
+	delete(lm.m, idx)
+	lm.l.Unlock()
 }
