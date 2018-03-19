@@ -90,22 +90,16 @@ func Ping(host string, hf HandleFunc, conf *PingConf) error {
 	return DefaultConn().Ping(host, hf, conf)
 }
 
-// Once sends a single ping and returns it
-func Once(host string, conf *PingConf) (*ping.Ping, error) {
-	return DefaultConn().Once(host, conf)
-}
-
-// PingWithContext starts a ping using the global conn
-// see Conn.PingWithContext for details
-func PingWithContext(ctx context.Context, host string, hf HandleFunc, conf *PingConf) error {
-	return DefaultConn().PingWithContext(ctx, host, hf, conf)
-}
-
 // Ping starts a ping. See PingWithContext for details
 func (c *Conn) Ping(host string, hf HandleFunc, conf *PingConf) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	return c.PingWithContext(ctx, host, hf, conf)
+}
+
+// Once sends a single ping and returns it
+func Once(host string, conf *PingConf) (*ping.Ping, error) {
+	return DefaultConn().Once(host, conf)
 }
 
 // Once sends a single ping and returns it
@@ -122,6 +116,12 @@ func (c *Conn) Once(host string, conf *PingConf) (*ping.Ping, error) {
 	}
 	err := c.PingWithContext(ctx, host, hf, conf)
 	return p, err
+}
+
+// PingWithContext starts a ping using the global conn
+// see Conn.PingWithContext for details
+func PingWithContext(ctx context.Context, host string, hf HandleFunc, conf *PingConf) error {
+	return DefaultConn().PingWithContext(ctx, host, hf, conf)
 }
 
 // PingWithContext starts a new ping to host calling cb every time a reply is recieved or a packet times out
@@ -152,6 +152,11 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 	return c.pingWithTicker(ctx, tick, &pktWg, host, hf, conf)
 }
 
+// NewPinger creates a new pinger for manually sending pings
+func NewPinger(ctx context.Context, host string, hf HandleFunc, conf *PingConf) (run func() error, send func()) {
+	return DefaultConn().NewPinger(ctx, host, hf, conf)
+}
+
 // NewPinger returns two functions, a run() function to run the listener, and a send() function to send pings.
 // run() will block until ctx is canceled or an error occors.
 // calling send() before run() will block
@@ -168,9 +173,4 @@ func (c *Conn) NewPinger(ctx context.Context, host string, hf HandleFunc, conf *
 		go tick.Run(tickCtx)
 		return c.pingWithTicker(ctx, tick, &pktWg, host, hf, conf)
 	}, tick.Tick
-}
-
-// NewPinger creates a new pinger for manually sending pings
-func NewPinger(ctx context.Context, host string, hf HandleFunc, conf *PingConf) (run func() error, send func()) {
-	return DefaultConn().NewPinger(ctx, host, hf, conf)
 }
