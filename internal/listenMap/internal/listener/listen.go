@@ -123,6 +123,7 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 			wWg.Wait()
 			close(l.dead)
 			l.l.Unlock()
+			break
 		}
 	}()
 
