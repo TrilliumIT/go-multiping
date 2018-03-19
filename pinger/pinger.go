@@ -129,7 +129,12 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 	pm := pending.NewMap()
 	pktWg := sync.WaitGroup{}
 
-	tick := ticker.NewTicker(conf.Interval, conf.RandDelay, pktWg.Wait)
+	var tick ticker.Ticker
+	if conf.Interval > 0 {
+		tick = ticker.NewIntervalTicker(conf.Interval, conf.RandDelay)
+	} else {
+		tick = ticker.NewFloodTicker(pktWg.Wait)
+	}
 	tickCtx, tickCancel := context.WithCancel(ctx)
 	defer tickCancel()
 	go tick.Run(tickCtx)
@@ -150,11 +155,11 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 		case <-ctx.Done():
 			run(lCancel)
 			return nil
-		case <-tick.C:
+		case <-tick.C():
 		}
 
 		pktWg.Add(1)
-		tick.Cont()
+		tick.Ready()
 
 		if id == 0 {
 			id = uint16(rand.Intn(1<<16-2) + 1)
