@@ -134,7 +134,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			Seq:     int(seq),
 			TimeOut: conf.Timeout,
 		}}
-		p.l.Lock()
+		p.Lock()
 		var pCtx context.Context
 		pCtx, p.Cancel = context.WithCancel(ctx)
 
@@ -142,7 +142,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			var nDst *net.IPAddr
 			nDst, p.Err = net.ResolveIPAddr("ip", host)
 			if p.Err != nil {
-				p.l.Unlock()
+				p.Unlock()
 				p.Cancel()
 				if conf.RetryOnResolveError {
 					go p.Wait(pCtx, pm, cb, pktWg.Done)
@@ -169,7 +169,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			lctx, lCancel = context.WithCancel(ctx)
 			err = c.lm.Add(lctx, dst.IP, id, pm.OnRecv)
 			if err != nil {
-				p.l.Unlock()
+				p.Unlock()
 				p.Cancel()
 				pktWg.Done() // we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
 
@@ -185,16 +185,16 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 
 		if opp, ok := pm.Add(p); ok {
 			// we've looped seq and this old pending packet is still hanging around, cancel it
-			opp.l.Lock()
+			opp.Lock()
 			opp.Err = ErrSeqWrapped
-			opp.l.Unlock()
+			opp.Unlock()
 			opp.Cancel()
 		}
 
 		p.Err = c.lm.Send(p.P, dst)
 
 		if p.Err != nil {
-			p.l.Unlock()
+			p.Unlock()
 			p.Cancel()
 			if conf.RetryOnSendError {
 				go p.Wait(pCtx, pm, cb, pktWg.Done)
@@ -211,7 +211,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			pCtx, p.Cancel = context.WithTimeout(ctx, conf.Timeout)
 		}
 
-		p.l.Unlock()
+		p.Unlock()
 		go p.Wait(pCtx, pm, cb, pktWg.Done)
 	}
 
