@@ -13,13 +13,7 @@ type ManualTicker struct {
 }
 
 func (mt *ManualTicker) Ready() {
-	select {
-	case mt.ready <- struct{}{}:
-		/*
-			default:
-				fmt.Println("runing ready default")
-		*/
-	}
+	mt.ready <- struct{}{}
 }
 
 // NewFloodTicker reutrns a new flood ticker.
