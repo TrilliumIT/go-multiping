@@ -187,16 +187,13 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 					go p.Wait(pCtx, pm, phf, pktWg.Done)
 					continue
 				}
-				pktWg.Done()
-				run(lCancel)
+				run(pktWg.Done, lCancel)
 				return p.Err
 			}
 
 			if dst == nil || !nDst.IP.Equal(dst.IP) { // IP changed
-				if lCancel != nil { // cancel the current listener
-					lCancel()
-					lCancel = nil
-				}
+				run(lCancel) // cancel the current listener
+				lCancel = nil
 				dst = nDst
 			}
 		}
@@ -209,10 +206,8 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 			lctx, lCancel = context.WithCancel(ctx)
 			err = c.lm.Add(lctx, dst.IP, id, pm.OnRecv)
 			if err != nil {
-				p.Unlock()
-				p.Cancel()
-				pktWg.Done() // we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
-				lCancel()
+				// we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
+				run(p.Unlock, p.Cancel, pktWg.Done, lCancel)
 				lCancel = nil
 				if err == listenMap.ErrAlreadyExists { // we already have this listener registered
 					id = 0 // try a different id
@@ -231,14 +226,12 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 		p.Err = c.lm.Send(p.P, dst)
 
 		if p.Err != nil {
-			p.Unlock()
-			p.Cancel()
+			run(p.Unlock, p.Cancel)
 			if conf.RetryOnSendError {
 				go p.Wait(pCtx, pm, phf, pktWg.Done)
 				continue
 			}
-			pktWg.Done()
-			run(lCancel)
+			run(pktWg.Done, lCancel)
 			return p.Err
 		}
 
@@ -249,7 +242,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 			pCtx, p.Cancel = context.WithTimeout(ctx, conf.Timeout)
 		}
 
-		p.Unlock()
+		run(p.Unlock)
 		go p.Wait(pCtx, pm, phf, pktWg.Done)
 	}
 
@@ -258,8 +251,10 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 	return nil
 }
 
-func run(f func()) {
-	if f != nil {
-		f()
+func run(f ...func()) {
+	for _, ff := range f {
+		if ff != nil {
+			ff()
+		}
 	}
 }
