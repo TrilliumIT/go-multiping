@@ -37,18 +37,16 @@ func (p *Ping) SetError(err error) {
 
 var ErrTimedOut = errors.New("ping timed out")
 
-func (p *Ping) Wait(ctx context.Context, pm *Map, h func(*ping.Ping, error), done func()) {
-	defer done()
+func (p *Ping) Wait(ctx context.Context, pm *Map, cb func(*ping.Ping, error), done func()) {
 	<-ctx.Done()
 	p.l.Lock()
-	defer p.l.Unlock()
-	ok := pm.Del(uint16(p.P.Seq))
-	if !ok {
-		return
-	}
+	pm.Del(uint16(p.P.Seq))
 	if ctx.Err() == context.DeadlineExceeded && p.Err == nil {
 		p.Err = ErrTimedOut
 	}
 
-	h(p.P, p.Err)
+	cb(p.P, p.Err)
+	p.l.Unlock()
+
+	done()
 }

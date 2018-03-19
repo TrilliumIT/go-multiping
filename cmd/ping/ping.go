@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	//"runtime/debug"
 	"runtime/pprof"
 	"sync"
 	"time"
@@ -56,27 +55,22 @@ func main() {
 	var recieved, dropped, errored uint64
 	var clock sync.Mutex
 
-	handler := func(ctx context.Context, pkt *ping.Ping, err error) {
+	callBack := func(pkt *ping.Ping, err error) {
 		clock.Lock()
 		defer clock.Unlock()
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
 		if err == nil {
 			recieved++
-			fmt.Printf("%v bytes from %v to %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Dst.String(), pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
+			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
 			return
 		}
 
 		dropped++
 		if err == pinger.ErrTimedOut {
-			fmt.Printf("Packet timed out to %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+			fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
 			return
 		}
 
-		fmt.Printf("Packet errored to %v seq: %v id: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, err)
+		fmt.Printf("Packet errored from %v seq: %v id: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, err)
 	}
 
 	pinger.DefaultConn().SetWorkers(*workers)
@@ -95,15 +89,15 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var wg sync.WaitGroup
-	for _, host := range flag.Args() {
+	for _, h := range flag.Args() {
 		wg.Add(1)
 		go func(h string) {
 			defer wg.Done()
-			err := pinger.PingWithContext(ctx, h, handler, conf)
+			err := pinger.PingWithContext(ctx, h, callBack, conf)
 			if err != nil {
 				panic(err)
 			}
-		}(host)
+		}(h)
 	}
 
 	c := make(chan os.Signal, 1)
@@ -120,6 +114,7 @@ func main() {
 
 	wg.Wait()
 	clock.Lock()
+	defer clock.Unlock()
 	fmt.Printf("%v recieved, %v dropped, %v errored\n", recieved, dropped, errored)
-	clock.Unlock()
+
 }
