@@ -79,6 +79,11 @@ func Ping(host string, hf HandleFunc, conf *PingConf) error {
 	return DefaultConn().Ping(host, hf, conf)
 }
 
+// Once sends a single ping and returns it
+func Once(host string, conf *PingConf) (*ping.Ping, error) {
+	return DefaultConn().Once(host, conf)
+}
+
 // PingWithContext starts a ping using the global conn
 // see Conn.PingWithContext for details
 func PingWithContext(ctx context.Context, host string, hf HandleFunc, conf *PingConf) error {
@@ -90,6 +95,22 @@ func (c *Conn) Ping(host string, hf HandleFunc, conf *PingConf) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	return c.PingWithContext(ctx, host, hf, conf)
+}
+
+// Once sends a single ping and returns it
+func (c *Conn) Once(host string, conf *PingConf) (*ping.Ping, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if conf == nil {
+		conf = DefaultPingConf()
+	}
+	conf.Count = 1
+	var p *ping.Ping
+	hf := func(ctx context.Context, rp *ping.Ping, err error) {
+		p = rp
+	}
+	err := c.PingWithContext(ctx, host, hf, conf)
+	return p, err
 }
 
 // PingWithContext starts a new ping to host calling cb every time a reply is recieved or a packet times out
