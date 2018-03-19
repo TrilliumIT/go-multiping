@@ -6,7 +6,8 @@ import "context"
 // C will fire either on the interval, or as soon as Cont is called followed by wait not blocking
 type FloodTicker struct {
 	ManualTicker
-	wait func()
+	ready chan struct{}
+	wait  func()
 }
 
 // NewFloodTicker reutrns a new flood ticker.
@@ -16,13 +17,25 @@ type FloodTicker struct {
 func NewFloodTicker(wait func()) Ticker {
 	return &FloodTicker{
 		newManualTicker(),
+		make(chan struct{}),
 		wait,
 	}
+}
+
+func (ft *FloodTicker) Ready() {
+	ft.ready <- struct{}{}
+	ft.ManualTicker.Ready()
 }
 
 func (ft *FloodTicker) Run(ctx context.Context) {
 	go func() {
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ft.ready:
+			}
+
 			ft.wait()
 			select {
 			case <-ctx.Done():
