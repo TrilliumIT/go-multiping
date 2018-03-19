@@ -48,6 +48,7 @@ type PingConf struct {
 	ReResolveEvery int
 }
 
+// DefaultPingConf returns a default ping configuration with an interval and timeout of 1 second
 func DefaultPingConf() *PingConf {
 	return &PingConf{
 		Interval: time.Second,
@@ -62,9 +63,14 @@ func (p *PingConf) validate() *PingConf {
 	return p
 }
 
+// ErrTimedOut is returned when a ping is timed out
 var ErrTimedOut = pending.ErrTimedOut
+
+// ErrSeqWrapped is returned if a packet is still being waited on by the time the ping sequence number wrapped and sent a new ping with this same sequence number
+// This is only likely to happen if using a very short interval with a very long, or non-existent timeout
 var ErrSeqWrapped = errors.New("response not recieved before sequence wrapped")
 
+// HandleFunc is a function to handle pings
 type HandleFunc func(context.Context, *ping.Ping, error)
 
 // Ping starts a ping using the global conn
@@ -104,12 +110,13 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 
 	tick := ticker.NewTicker(conf.Interval, conf.RandDelay, pktWg.Wait)
 	tickCtx, tickCancel := context.WithCancel(ctx)
+	defer tickCancel()
 	go tick.Run(tickCtx)
 
 	phf := func(p *ping.Ping, err error) { hf(ctx, p, err) }
 	var id, seq uint16
 	var dst *net.IPAddr
-	var sent int = -1 // number of packets attempted to be sent
+	sent := -1 // number of packets attempted to be sent
 	var lCancel func()
 	var err error
 	for {
@@ -120,6 +127,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 
 		select {
 		case <-ctx.Done():
+			run(lCancel)
 			return nil
 		case <-tick.C:
 		}
@@ -153,6 +161,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 					continue
 				}
 				pktWg.Done()
+				run(lCancel)
 				return p.Err
 			}
 
@@ -176,11 +185,10 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 				p.Unlock()
 				p.Cancel()
 				pktWg.Done() // we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
-
+				lCancel()
+				lCancel = nil
 				if err == listenMap.ErrAlreadyExists { // we already have this listener registered
 					id = 0 // try a different id
-					lCancel()
-					lCancel = nil
 					continue
 				}
 				return err
@@ -203,6 +211,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 				continue
 			}
 			pktWg.Done()
+			run(lCancel)
 			return p.Err
 		}
 
@@ -217,7 +226,13 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 		go p.Wait(pCtx, pm, phf, pktWg.Done)
 	}
 
-	tickCancel()
 	pktWg.Wait()
+	run(lCancel)
 	return nil
+}
+
+func run(f func()) {
+	if f != nil {
+		f()
+	}
 }
