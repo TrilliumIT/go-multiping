@@ -20,6 +20,9 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 	sent := -1 // number of packets attempted to be sent
 	var lCancel func()
 	var err error
+	wCtx, wCancel := context.WithCancel(ctx)
+	defer wCancel()
+	proc, wWait := getProcFunc(wCtx, conf.Workers, conf.Buffer, pm, phf, pktWg)
 	tick.Ready()
 	for {
 		sent++
@@ -58,7 +61,8 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 			if p.Err != nil {
 				run(p.Unlock, p.Cancel)
 				if conf.RetryOnResolveError {
-					go p.Wait(pCtx, pm, phf, pktWg.Done)
+					proc(&procPing{p, pCtx})
+					pktWg.Done()
 					continue
 				}
 				run(pktWg.Done, lCancel)
@@ -99,7 +103,8 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 		if p.Err != nil {
 			run(p.Unlock, p.Cancel)
 			if conf.RetryOnSendError {
-				go p.Wait(pCtx, pm, phf, pktWg.Done)
+				proc(&procPing{p, pCtx})
+				pktWg.Done()
 				continue
 			}
 			run(pktWg.Done, lCancel)
@@ -114,9 +119,12 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 		}
 
 		run(p.Unlock)
-		go p.Wait(pCtx, pm, phf, pktWg.Done)
+		proc(&procPing{p, pCtx})
+		pktWg.Done()
 	}
 
+	wWait()
+	wCancel()
 	pktWg.Wait()
 	run(lCancel)
 	return nil

@@ -44,7 +44,7 @@ func (p *Ping) SetError(err error) {
 var ErrTimedOut = errors.New("ping timed out")
 
 // Wait waits for the reply to be recieved, or ctx to time out.
-func (p *Ping) Wait(ctx context.Context, pm *Map, cb func(*ping.Ping, error), done func()) {
+func (p *Ping) Wait(ctx context.Context, pm *Map, cb func(*ping.Ping, error)) {
 	<-ctx.Done()
 	p.l.Lock()
 	pm.Del(uint16(p.P.Seq))
@@ -54,6 +54,4 @@ func (p *Ping) Wait(ctx context.Context, pm *Map, cb func(*ping.Ping, error), do
 
 	cb(p.P, p.Err)
 	p.l.Unlock()
-
-	done()
 }

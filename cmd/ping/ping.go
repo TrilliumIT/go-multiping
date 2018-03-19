@@ -18,7 +18,7 @@ import (
 var usage = `
 Usage:
 
-    ping [-c count] [-i interval] [-t timeout] [-cw workers] [-w workers] [-b buffersize] [-r] [-d] [-m] host host2 host3
+    ping [-c count] [-i interval] [-t timeout] [-cw workers] [-cb buffersize] [-w workers] [-b buffer] [-r] [-d] [-m] host host2 host3
 
 Examples:
 
@@ -40,7 +40,8 @@ func main() {
 	interval := flag.Duration("i", time.Second, "")
 	count := flag.Int("c", 0, "")
 	connWorkers := flag.Int("cw", -1, "")
-	workers := flag.Int("cw", -1, "")
+	connBuffer := flag.Int("cb", 0, "")
+	workers := flag.Int("w", -1, "")
 	buffer := flag.Int("b", 0, "")
 	reResolve := flag.Bool("r", false, "")
 	randDelay := flag.Bool("d", false, "")
@@ -88,7 +89,7 @@ func main() {
 	}
 
 	pinger.DefaultConn().SetWorkers(*connWorkers)
-	pinger.DefaultConn().SetBuffer(*buffer)
+	pinger.DefaultConn().SetBuffer(*connBuffer)
 	conf := pinger.DefaultPingConf()
 	conf.RetryOnResolveError = *reResolve
 	if *reResolve {
@@ -99,6 +100,8 @@ func main() {
 	conf.Count = *count
 	conf.RandDelay = *randDelay
 	conf.RetryOnSendError = true
+	conf.Workers = *workers
+	conf.Buffer = *buffer
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -142,7 +145,7 @@ func main() {
 		<-c
 		cancel()
 		go func() {
-			time.Sleep(30 * time.Second)
+			time.Sleep(5 * time.Second)
 			err := pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			panic(err)
 		}()

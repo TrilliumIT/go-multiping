@@ -53,6 +53,9 @@ type PingConf struct {
 	// 0 and -1 can cause a memory leak while packets time out if timeout is less than interval. This can also cause a memory leak if it takes longer to run handler than interval.
 	// A postive number pre-allocates a set number of workers
 	Workers int
+
+	// Buffer is the buffer length for handling packets. This can help handle bursts of pings without increasing workers.
+	Buffer int
 }
 
 // DefaultPingConf returns a default ping configuration with an interval and timeout of 1 second
