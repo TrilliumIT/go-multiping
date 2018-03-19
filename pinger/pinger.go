@@ -129,7 +129,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		}
 		seq = uint16(sent)
 
-		p := &pending.PendingPing{P: &ping.Ping{
+		p := &pending.Ping{P: &ping.Ping{
 			Host:    host,
 			ID:      int(id),
 			Seq:     int(seq),
