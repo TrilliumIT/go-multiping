@@ -22,6 +22,12 @@ func (p *PendingPing) Unlock() {
 	p.l.Unlock()
 }
 
+func (p *PendingPing) UpdateFrom(p2 *ping.Ping) {
+	p.Lock()
+	p.P.UpdateFrom(p2)
+	p.Unlock()
+}
+
 func (p *PendingPing) Wait(ctx context.Context, pm *PendingMap, cb func(*ping.Ping, error), done func()) {
 	<-ctx.Done()
 	p.l.Lock()

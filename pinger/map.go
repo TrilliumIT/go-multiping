@@ -47,9 +47,7 @@ func (pm *PendingMap) OnRecv(ctx context.Context, p *ping.Ping) {
 		return
 	}
 
-	pp.Lock()
-	pp.P.UpdateFrom(p)
-	pp.Unlock()
+	pp.UpdateFrom(p)
 
 	// cancel the timeout thread, will call cb and done() the waitgroup
 	pp.Cancel()
