@@ -178,11 +178,10 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 		pCtx, p.Cancel = context.WithCancel(ctx)
 
 		if dst == nil || (conf.ReResolveEvery != 0 && sent%conf.ReResolveEvery == 0) {
-			var nDst *net.IPAddr
-			nDst, p.Err = net.ResolveIPAddr("ip", host)
+			var changed bool
+			dst, changed, p.Err = resolve(dst, host)
 			if p.Err != nil {
-				p.Unlock()
-				p.Cancel()
+				run(p.Unlock, p.Cancel)
 				if conf.RetryOnResolveError {
 					go p.Wait(pCtx, pm, phf, pktWg.Done)
 					continue
@@ -191,10 +190,9 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 				return p.Err
 			}
 
-			if dst == nil || !nDst.IP.Equal(dst.IP) { // IP changed
+			if changed {
 				run(lCancel) // cancel the current listener
 				lCancel = nil
-				dst = nDst
 			}
 		}
 		p.P.Dst = dst.IP
@@ -202,9 +200,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 
 		if lCancel == nil { // we don't have a listner yet for this dst
 			// Register with listenmap
-			var lctx context.Context
-			lctx, lCancel = context.WithCancel(ctx)
-			err = c.lm.Add(lctx, dst.IP, id, pm.OnRecv)
+			lCancel, err = addListener(ctx, c.lm, dst.IP, id, pm.OnRecv)
 			if err != nil {
 				// we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
 				run(p.Unlock, p.Cancel, pktWg.Done, lCancel)
@@ -238,7 +234,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 		if conf.Timeout > 0 {
 			// we're not running wait yet, so nothing is waiting on this ctx, we're replacing it with one with a timeout now
 			// but canceling is a good idea to release resources from the previous ctx
-			p.Cancel()
+			run(p.Cancel)
 			pCtx, p.Cancel = context.WithTimeout(ctx, conf.Timeout)
 		}
 
