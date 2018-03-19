@@ -19,12 +19,10 @@ func init() {
 // PingConf holds optional coniguration parameters
 type PingConf struct {
 	// Count is how many pings will be attempted
-	//
 	// 0 for unlimited pings
 	Count int
 
 	// Interval is the interval between pings
-	//
 	// 0 for flood ping, sending a new packet as soon as the previous one is replied or times out
 	Interval time.Duration
 
@@ -35,34 +33,24 @@ type PingConf struct {
 	RandDelay bool
 
 	// RetryOnResolveError will cause callback to be called on resolution errors
-	//
 	// Resolution errors can be identied by error type net.DNSError
-	//
 	// Otherwise Ping() will stop and retun an error on resolution errors
 	RetryOnResolveError bool
 
 	// RetryOnSendError will cause callback to be called on send errors.
-	//
 	// Otherwise Ping() will stop and return an error on send errors.
 	RetryOnSendError bool
 
 	// ReResolveEvery caused pinger to re-resolve dns for a host every n pings.
-	//
 	// 0 to disable. 1 to re-resolve every ping
 	ReResolveEvery int
 
 	// Workers is a number of workers to run handlers.
-	//
 	// <-1 disables workers entirely and synchronously processes the incoming packet before listening for a new one.
-	//
 	// This will prevent new pings from being able to be sent until the last one is handled, either returned or timed out.
-	//
 	// -1 enables automatic worker allocation. Any time packet processing would block, a new worker is started. Workers remain active until all active pings stop. This is the default.
-	//
 	// 0 disables workers, causing each incoming packet to start a new goroutine to handle it.
-	//
 	// 0 and -1 can cause a memory leak while packets time out if timeout is less than interval. This can also cause a memory leak if it takes longer to run handler than interval.
-	//
 	// A postive number pre-allocates a set number of workers
 	Workers int
 
