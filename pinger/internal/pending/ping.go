@@ -1,7 +1,8 @@
-package pinger
+package pending
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/TrilliumIT/go-multiping/ping"
@@ -33,6 +34,8 @@ func (p *PendingPing) SetError(err error) {
 	p.Err = err
 	p.Unlock()
 }
+
+var ErrTimedOut = errors.New("ping timed out")
 
 func (p *PendingPing) Wait(ctx context.Context, pm *PendingMap, cb func(*ping.Ping, error), done func()) {
 	<-ctx.Done()

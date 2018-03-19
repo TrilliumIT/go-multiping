@@ -10,6 +10,7 @@ import (
 
 	"github.com/TrilliumIT/go-multiping/internal/listenMap"
 	"github.com/TrilliumIT/go-multiping/ping"
+	"github.com/TrilliumIT/go-multiping/pinger/internal/pending"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/ticker"
 )
 
@@ -61,7 +62,7 @@ func (p *PingConf) validate() *PingConf {
 	return p
 }
 
-var ErrTimedOut = errors.New("ping timed out")
+var ErrTimedOut = pending.ErrTimedOut
 var ErrSeqWrapped = errors.New("response not recieved before sequence wrapped")
 
 // Ping starts a ping using the global conn
@@ -96,7 +97,7 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.Ping, error), conf *PingConf) error {
 	conf = conf.validate()
 
-	pm := NewMap()
+	pm := pending.NewMap()
 	pktWg := sync.WaitGroup{}
 
 	tick := ticker.NewTicker(conf.Interval, conf.RandDelay, pktWg.Wait)
@@ -128,7 +129,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		}
 		seq = uint16(sent)
 
-		p := &PendingPing{P: &ping.Ping{
+		p := &pending.PendingPing{P: &ping.Ping{
 			Host:    host,
 			ID:      int(id),
 			Seq:     int(seq),

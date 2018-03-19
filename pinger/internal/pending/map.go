@@ -1,4 +1,4 @@
-package pinger
+package pending
 
 import (
 	"context"
