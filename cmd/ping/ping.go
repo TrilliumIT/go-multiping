@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -17,7 +18,7 @@ import (
 var usage = `
 Usage:
 
-    ping [-c count] [-i interval] [-t timeout] [-w workers] [-b buffersize] [-r] [-d] host host2 host3
+    ping [-c count] [-i interval] [-t timeout] [-w workers] [-b buffersize] [-r] [-d] [-m] host host2 host3
 
 Examples:
 
@@ -42,6 +43,7 @@ func main() {
 	buffer := flag.Int("b", 0, "")
 	reResolve := flag.Bool("r", false, "")
 	randDelay := flag.Bool("d", false, "")
+	manual := flag.Bool("m", false, "")
 	flag.Usage = func() {
 		fmt.Print(usage)
 	}
@@ -93,16 +95,38 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	sends := []func(){}
 	var wg sync.WaitGroup
 	for _, h := range flag.Args() {
+		host := h
+		var run func() error
+		var send func()
+		if *manual {
+			run, send = pinger.NewPinger(ctx, host, handle, conf)
+			sends = append(sends, send)
+		} else {
+			run = func() error { return pinger.PingWithContext(ctx, host, handle, conf) }
+		}
 		wg.Add(1)
-		go func(h string) {
+		go func(run func() error) {
 			defer wg.Done()
-			err := pinger.PingWithContext(ctx, h, handle, conf)
+			err := run()
 			if err != nil {
 				panic(err)
 			}
-		}(h)
+		}(run)
+	}
+
+	if *manual {
+		go func() {
+			for {
+				fmt.Println("Press 'Enter' to send pings...")
+				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				for _, s := range sends {
+					s()
+				}
+			}
+		}()
 	}
 
 	c := make(chan os.Signal, 1)

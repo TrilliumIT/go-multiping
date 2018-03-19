@@ -156,3 +156,7 @@ func (c *Conn) NewPinger(ctx context.Context, host string, hf HandleFunc, conf *
 		return c.pingWithTicker(ctx, tick, &pktWg, host, hf, conf)
 	}, tick.Ready
 }
+
+func NewPinger(ctx context.Context, host string, hf HandleFunc, conf *PingConf) (run func() error, send func()) {
+	return DefaultConn().NewPinger(ctx, host, hf, conf)
+}
