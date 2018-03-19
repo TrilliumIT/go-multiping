@@ -55,8 +55,13 @@ func main() {
 	var recieved, dropped, errored uint64
 	var clock sync.Mutex
 
-	callBack := func(pkt *ping.Ping, err error) {
+	handle := func(ctx context.Context, pkt *ping.Ping, err error) {
 		clock.Lock()
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		defer clock.Unlock()
 		if err == nil {
 			recieved++
@@ -93,7 +98,7 @@ func main() {
 		wg.Add(1)
 		go func(h string) {
 			defer wg.Done()
-			err := pinger.PingWithContext(ctx, h, callBack, conf)
+			err := pinger.PingWithContext(ctx, h, handle, conf)
 			if err != nil {
 				panic(err)
 			}

@@ -65,23 +65,25 @@ func (p *PingConf) validate() *PingConf {
 var ErrTimedOut = pending.ErrTimedOut
 var ErrSeqWrapped = errors.New("response not recieved before sequence wrapped")
 
+type HandleFunc func(context.Context, *ping.Ping, error)
+
 // Ping starts a ping using the global conn
 // see Conn.Ping for details
-func Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
-	return DefaultConn().Ping(host, cb, conf)
+func Ping(host string, hf HandleFunc, conf *PingConf) error {
+	return DefaultConn().Ping(host, hf, conf)
 }
 
 // PingWithContext starts a ping using the global conn
 // see Conn.PingWithContext for details
-func PingWithContext(ctx context.Context, host string, cb func(*ping.Ping, error), conf *PingConf) error {
-	return DefaultConn().PingWithContext(ctx, host, cb, conf)
+func PingWithContext(ctx context.Context, host string, hf HandleFunc, conf *PingConf) error {
+	return DefaultConn().PingWithContext(ctx, host, hf, conf)
 }
 
 // Ping starts a ping. See PingWithContext for details
-func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) error {
+func (c *Conn) Ping(host string, hf HandleFunc, conf *PingConf) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	return c.PingWithContext(ctx, host, cb, conf)
+	return c.PingWithContext(ctx, host, hf, conf)
 }
 
 // PingWithContext starts a new ping to host calling cb every time a reply is recieved or a packet times out
@@ -94,7 +96,7 @@ func (c *Conn) Ping(host string, cb func(*ping.Ping, error), conf *PingConf) err
 // a packet sequence before the last packet sent with that sequence is recieved. If this happens, the callback or the
 // first packet will never be triggered
 // GoRoutines will be leaked if context is never canceled
-func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.Ping, error), conf *PingConf) error {
+func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, conf *PingConf) error {
 	conf = conf.validate()
 
 	pm := pending.NewMap()
@@ -104,6 +106,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 	tickCtx, tickCancel := context.WithCancel(ctx)
 	go tick.Run(tickCtx)
 
+	phf := func(p *ping.Ping, err error) { hf(ctx, p, err) }
 	var id, seq uint16
 	var dst *net.IPAddr
 	var sent int = -1 // number of packets attempted to be sent
@@ -146,7 +149,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 				p.Unlock()
 				p.Cancel()
 				if conf.RetryOnResolveError {
-					go p.Wait(pCtx, pm, cb, pktWg.Done)
+					go p.Wait(pCtx, pm, phf, pktWg.Done)
 					continue
 				}
 				pktWg.Done()
@@ -196,7 +199,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 			p.Unlock()
 			p.Cancel()
 			if conf.RetryOnSendError {
-				go p.Wait(pCtx, pm, cb, pktWg.Done)
+				go p.Wait(pCtx, pm, phf, pktWg.Done)
 				continue
 			}
 			pktWg.Done()
@@ -211,7 +214,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 		}
 
 		p.Unlock()
-		go p.Wait(pCtx, pm, cb, pktWg.Done)
+		go p.Wait(pCtx, pm, phf, pktWg.Done)
 	}
 
 	tickCancel()
