@@ -57,12 +57,12 @@ func main() {
 
 	handle := func(ctx context.Context, pkt *ping.Ping, err error) {
 		clock.Lock()
+		defer clock.Unlock()
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
-		defer clock.Unlock()
 		if err == nil {
 			recieved++
 			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
@@ -119,7 +119,7 @@ func main() {
 
 	wg.Wait()
 	clock.Lock()
-	defer clock.Unlock()
 	fmt.Printf("%v recieved, %v dropped, %v errored\n", recieved, dropped, errored)
+	clock.Unlock()
 
 }
