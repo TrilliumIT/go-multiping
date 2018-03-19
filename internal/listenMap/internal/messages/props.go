@@ -10,6 +10,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
+// Props holds various properties for an icmp message
 type Props struct {
 	Network     string
 	Src         string
@@ -19,6 +20,7 @@ type Props struct {
 	ExpectedLen int
 }
 
+// V4Props holds the properties for v4
 var V4Props = &Props{
 	Network:  "ip4:icmp",
 	Src:      "0.0.0.0",
@@ -27,6 +29,7 @@ var V4Props = &Props{
 	RecvType: ipv4.ICMPTypeEcho,
 }
 
+// V6Props hods the properties for v6
 var V6Props = &Props{
 	Network:  "ip6:ipv6-icmp",
 	Src:      "::",
@@ -35,26 +38,17 @@ var V6Props = &Props{
 	RecvType: ipv6.ICMPTypeEchoReply,
 }
 
-func init() {
-	if m, err := (&icmp.Message{
-		Type: V4Props.RecvType,
+func getLen(typ icmp.Type) int {
+	m, _ := (&icmp.Message{
+		Type: typ,
 		Body: &icmp.Echo{
 			Data: make([]byte, ping.TimeSliceLength),
 		},
-	}).Marshal(nil); err == nil {
-		V4Props.ExpectedLen = len(m) + v4AddLen
-	} else {
-		panic(err)
-	}
+	}).Marshal(nil)
+	return len(m)
+}
 
-	if m, err := (&icmp.Message{
-		Type: V6Props.RecvType,
-		Body: &icmp.Echo{
-			Data: make([]byte, ping.TimeSliceLength),
-		},
-	}).Marshal(nil); err == nil {
-		V6Props.ExpectedLen = len(m) + v6AddLen
-	} else {
-		panic(err)
-	}
+func init() {
+	V4Props.ExpectedLen = getLen(V4Props.RecvType) + v4AddLen
+	V6Props.ExpectedLen = getLen(V4Props.RecvType) + v6AddLen
 }

@@ -2,6 +2,7 @@ package listener
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
+// Listener is a listener for one protocol, ipv4 or ipv6
 type Listener struct {
 	proto int
 	l     sync.RWMutex
@@ -21,6 +23,7 @@ type Listener struct {
 	Props *messages.Props
 }
 
+// New returns a new listener
 func New(p int) *Listener {
 	l := &Listener{proto: p}
 	switch p {
@@ -34,6 +37,7 @@ func New(p int) *Listener {
 	return l
 }
 
+// Running is if the listener is currently listening for packets
 func (l *Listener) Running() bool {
 	l.l.RLock()
 	r := l.usRunning()
@@ -41,17 +45,15 @@ func (l *Listener) Running() bool {
 	return r
 }
 
-type ErrNotRunning struct{}
+// ErrNotRunning is returned if send is requested and listener is not running
+var ErrNotRunning = errors.New("listener not running")
 
-func (e *ErrNotRunning) Error() string {
-	return "listener not running"
-}
-
+// Send sends a packet using this connectiong
 func (l *Listener) Send(p *ping.Ping, dst net.Addr) error {
 	l.l.RLock()
 	defer l.l.RUnlock()
 	if !l.usRunning() {
-		return &ErrNotRunning{}
+		return ErrNotRunning
 	}
 	l.ipWg.Add(1)
 	defer l.ipWg.Done()
@@ -62,7 +64,7 @@ func (l *Listener) Send(p *ping.Ping, dst net.Addr) error {
 		return err
 	}
 	p.Len, err = l.conn.WriteTo(b, dst)
-	return nil
+	return err
 }
 
 func (l *Listener) usRunning() bool {
@@ -74,16 +76,19 @@ func (l *Listener) usRunning() bool {
 	return true
 }
 
+// WgAdd adds a waitgroup entry to prevent this listener from shutting down
 func (l *Listener) WgAdd(delta int) {
 	l.l.RLock()
 	l.ipWg.Add(delta)
 	l.l.RUnlock()
 }
 
+// WgDone decremetns the wait group
 func (l *Listener) WgDone() {
 	l.ipWg.Done()
 }
 
+// Run starts this listener running
 func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Ping), workers int, buffer int) error {
 	l.l.Lock()
 	defer l.l.Unlock()

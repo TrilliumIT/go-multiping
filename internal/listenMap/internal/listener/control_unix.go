@@ -4,7 +4,6 @@ package listener
 
 import (
 	"fmt"
-	"net"
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
@@ -35,8 +34,4 @@ func readPacket(c *icmp.PacketConn, r *messages.RecvMsg) error {
 		r.PayloadLen, r.V6cm, _, err = c.IPv6PacketConn().ReadFrom(r.Payload)
 	}
 	return err
-}
-
-func cbIP(ip net.IP) net.IP {
-	return ip
 }

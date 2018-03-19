@@ -10,6 +10,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
+// RecvMsg is a message recieved from a socket listener
 type RecvMsg struct {
 	V4cm       *ipv4.ControlMessage
 	V6cm       *ipv6.ControlMessage
@@ -18,6 +19,7 @@ type RecvMsg struct {
 	PayloadLen int
 }
 
+// ToPing turns a RecvMsg into a ping
 func (r *RecvMsg) ToPing() *ping.Ping {
 	var proto int
 	var typ icmp.Type
