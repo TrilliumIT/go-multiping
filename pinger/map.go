@@ -19,24 +19,24 @@ func NewMap() *PendingMap {
 }
 
 // Add returns the previous pendingPkt at this sequence if one existed
-func (p *PendingMap) Add(pp *PendingPing) (*PendingPing, bool) {
-	p.l.Lock()
-	opp, ok := p.m[uint16(pp.P.Seq)]
-	p.m[uint16(pp.P.Seq)] = pp
-	p.l.Unlock()
+func (pm *PendingMap) Add(pp *PendingPing) (*PendingPing, bool) {
+	pm.l.Lock()
+	opp, ok := pm.m[uint16(pp.P.Seq)]
+	pm.m[uint16(pp.P.Seq)] = pp
+	pm.l.Unlock()
 	return opp, ok
 }
 
-func (p *PendingMap) Del(seq uint16) {
-	p.l.Lock()
-	delete(p.m, seq)
-	p.l.Unlock()
+func (pm *PendingMap) Del(seq uint16) {
+	pm.l.Lock()
+	delete(pm.m, seq)
+	pm.l.Unlock()
 }
 
-func (p *PendingMap) Get(seq uint16) (*PendingPing, bool) {
-	p.l.Lock()
-	opp, ok := p.m[seq]
-	p.l.Unlock()
+func (pm *PendingMap) Get(seq uint16) (*PendingPing, bool) {
+	pm.l.Lock()
+	opp, ok := pm.m[seq]
+	pm.l.Unlock()
 	return opp, ok
 }
 
@@ -47,9 +47,9 @@ func (pm *PendingMap) OnRecv(ctx context.Context, p *ping.Ping) {
 		return
 	}
 
-	pp.l.Lock()
+	pp.Lock()
 	pp.P.UpdateFrom(p)
-	pp.l.Unlock()
+	pp.Unlock()
 
 	// cancel the timeout thread, will call cb and done() the waitgroup
 	pp.Cancel()
