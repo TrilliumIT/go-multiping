@@ -185,9 +185,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, cb func(*ping.P
 
 		if opp, ok := pm.Add(p); ok {
 			// we've looped seq and this old pending packet is still hanging around, cancel it
-			opp.Lock()
-			opp.Err = ErrSeqWrapped
-			opp.Unlock()
+			opp.SetError(ErrSeqWrapped)
 			opp.Cancel()
 		}
 
