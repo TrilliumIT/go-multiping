@@ -119,8 +119,8 @@ func main() {
 
 	if *manual {
 		go func() {
+			fmt.Println("Press 'Enter' to send pings...")
 			for {
-				fmt.Println("Press 'Enter' to send pings...")
 				bufio.NewReader(os.Stdin).ReadBytes('\n')
 				for _, s := range sends {
 					s()
