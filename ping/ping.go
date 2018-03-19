@@ -24,6 +24,8 @@ const (
 
 // Ping is an ICMP packet that has been received
 type Ping struct {
+	// Host is the hostname that was pinged
+	Host string
 	// Src is the source IP. This is probably 0.0.0.0 for sent packets, but a
 	// specific IP on the sending host for recieved packets
 	Src net.IP
@@ -40,38 +42,77 @@ type Ping struct {
 	Sent time.Time
 	// Recieved is the time the echo was recieved.
 	Recieved time.Time
-	// TimeOut is the time the echo timed out
-	TimeOut time.Time
+	// TimeOut is timeout duration
+	TimeOut time.Duration
 	// TTL is the ttl on the recieved packet.
 	// This is not supported on windows and will always be zero
 	TTL int
 	// Len is the length of the recieved packet
 	Len int
-
-	// SendPening is open when a send is pending, but not yet succeeded
-	SendPending chan struct{}
 }
 
-func (p *Ping) IsSending() bool {
-	if p.SendPending == nil {
-		return false
+func (p *Ping) UpdateFrom(p2 *Ping) {
+	if p.Host == "" {
+		p.Host = p2.Host
 	}
-	select {
-	case <-p.SendPending:
-		return false
-	default:
+
+	if p.Src == nil && p2.Src != nil {
+		p.Src = p2.Src
 	}
-	return true
+
+	if p.Src.IsUnspecified() && !p2.Src.IsUnspecified() {
+		p.Src = p2.Src
+	}
+
+	if p.Dst == nil && p2.Dst != nil {
+		p.Dst = p2.Dst
+	}
+
+	if p.Dst.IsUnspecified() && !p2.Dst.IsUnspecified() {
+		p.Dst = p2.Dst
+	}
+
+	if p.ID == 0 {
+		p.ID = p2.ID
+	}
+
+	if p.Seq == 0 {
+		p.Seq = p2.Seq
+	}
+
+	if p.Sent.IsZero() {
+		p.Sent = p2.Sent
+	}
+
+	if p.Recieved.IsZero() {
+		p.Recieved = p2.Recieved
+	}
+
+	if p.TimeOut == 0 {
+		p.TimeOut = p2.TimeOut
+	}
+
+	if p.Len == 0 {
+		p.Len = p2.Len
+	}
+
+	if p.TTL == 0 {
+		p.TTL = p2.TTL
+	}
+}
+
+func (p *Ping) TimedOut() time.Time {
+	return p.Sent.Add(p.TimeOut)
 }
 
 func (p *Ping) IsTimedOut() bool {
-	if p.TimeOut.IsZero() {
+	if p.TimeOut == 0 {
 		return false
 	}
 	if !p.Recieved.IsZero() {
-		return p.Recieved.After(p.TimeOut)
+		return p.Recieved.After(p.TimedOut())
 	}
-	return time.Now().After(p.TimeOut)
+	return time.Now().After(p.TimedOut())
 }
 
 func (p *Ping) IsSent() bool {

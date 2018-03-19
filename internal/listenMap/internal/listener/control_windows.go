@@ -1,6 +1,6 @@
-// +build darwin dragonfly freebsd linux netbsd openbsd solaris
+// see https://github.com/golang/net/blob/master/ipv4/control_windows.go#L14
 
-package pinger
+package listener
 
 import (
 	"fmt"
@@ -12,17 +12,15 @@ import (
 )
 
 const (
-	v4AddLen = 0
-	v6AddLen = 0
+	v4AddLen = ipv4.HeaderLen
+	v6AddLen = ipv6.HeaderLen
 )
 
 func setPacketCon(c *icmp.PacketConn) error {
 	var err error
 	switch {
 	case c.IPv4PacketConn() != nil:
-		err = c.IPv4PacketConn().SetControlMessage(ipv4.FlagDst|ipv4.FlagSrc|ipv4.FlagTTL, true)
 	case c.IPv6PacketConn() != nil:
-		err = c.IPv6PacketConn().SetControlMessage(ipv6.FlagDst|ipv6.FlagSrc|ipv6.FlagHopLimit, true)
 	default:
 		err = fmt.Errorf("no valid connections")
 	}
@@ -33,13 +31,25 @@ func readPacket(c *icmp.PacketConn, r *recvMsg) error {
 	var err error
 	switch {
 	case c.IPv4PacketConn() != nil:
-		r.payloadLen, r.v4cm, _, err = c.IPv4PacketConn().ReadFrom(r.payload)
+		r.v4cm = &ipv4.ControlMessage{
+			Src: net.IPv4zero,
+		}
+		r.payloadLen, _, _, err = c.IPv4PacketConn().ReadFrom(r.payload)
 	case c.IPv6PacketConn() != nil:
-		r.payloadLen, r.v6cm, _, err = c.IPv6PacketConn().ReadFrom(r.payload)
+		r.v6cm = &ipv6.ControlMessage{
+			Src: net.IPv6zero,
+		}
+		r.payloadLen, _, _, err = c.IPv6PacketConn().ReadFrom(r.payload)
 	}
 	return err
 }
 
 func cbIP(ip net.IP) net.IP {
-	return ip
+	if ip == nil {
+		return ip
+	}
+	if ip.To4() != nil {
+		return net.IPv4zero
+	}
+	return net.IPv6zero
 }

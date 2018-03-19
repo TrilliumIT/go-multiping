@@ -1,11 +1,9 @@
 ### Efficiently Ping lots of hosts in go
 
 Multiping is a library for efficiently pinging lots of hosts. No matter how many
-hosts you start pinging a pinger will only open one raw socket listner (two
-if you are pinging both IPv4 and IPv6 hosts).
+hosts you start pinging a single [Conn](https://godoc.org/github.com/TrilliumIT/go-multiping/pinger#Conn) will only open one raw socket listner (two if you are pinging both IPv4 and IPv6 hosts).
 
 The socket will only be listening as long as you have an active ping running.
-Pingers are thread safe and you can add and remove destinations as needed.
 
 Note that this library only performs ICMP based pings, which means it must be
 run as root or have the appropriate capabilities set. To run tests, or use `go
@@ -16,40 +14,43 @@ more details.
 
 Quick Start.
 ```go
-import (
-  "sync"
-  "time"
+package main
 
-	"github.com/TrilliumIT/go-multiping/packet"
+import (
+	"context"
+	"sync"
+
+	"github.com/TrilliumIT/go-multiping/ping"
 	"github.com/TrilliumIT/go-multiping/pinger"
 )
 
-func main() {
-	callBack := func(pkt *ping.Ping, err error) {
-		if err != nil {
-			fmt.Printf("Packet errored from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
-			return
-		}
-		if pkt.IsRecieved() && !pkt.IsTimedOut() {
-			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
-			return
-		}
-		if pkt.IsTimedOut() {
-			fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
-		}
+func handle(ctx context.Context, pkt *ping.Ping, err error) {
+	if err == nil {
+		fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
+		return
 	}
+	if err == pinger.ErrTimedOut {
+		fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
+		return
+	}
+	fmt.Printf("Packet errored from %v seq: %v id: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, err)
+}
+
+func main() {
+	conf := pinger.DefaultPingConf()
+	conf.Count = 1
+	ctx, cancel := context.WithCancel(context.Background())
 
 	var wg sync.WaitGroup
 	for _, h := range flag.Args() {
-		d := pinger.NewDst(h, 4, time.Second, time.Second, callBack)
 		wg.Add(1)
-		go func() {
-			err := d.Run()
+		go func(h string) {
+			defer wg.Done()
+			err := pinger.PingWithContext(ctx, h, handle, conf)
 			if err != nil {
 				panic(err)
 			}
-			wg.Done()
-		}
+		}(h)
 	}
 	wg.Wait()
 }

@@ -1,45 +1,223 @@
 package pinger
 
 import (
+	"context"
+	"errors"
+	"math/rand"
 	"net"
 	"sync"
+	"time"
 
-	protoPinger "github.com/TrilliumIT/go-multiping/internal/pinger"
+	"github.com/TrilliumIT/go-multiping/internal/listenMap"
+	"github.com/TrilliumIT/go-multiping/ping"
+	"github.com/TrilliumIT/go-multiping/pinger/internal/pending"
+	"github.com/TrilliumIT/go-multiping/pinger/internal/ticker"
 )
 
-// Pinger holds a single listener for incoming ICMPs. (one for ipv4 one for ipv6 if necessary). It only holds the listener open while a ping is running.
-// One Pinger can support multiple ongoing pings with a single listener.
-type Pinger struct {
-	v4Pinger *protoPinger.Pinger
-	v6Pinger *protoPinger.Pinger
+func init() {
+	rand.Seed(time.Now().UnixNano())
 }
 
-var globalPinger *Pinger
-var globalPingerLock sync.Mutex
+// PingConf holds optional coniguration parameters
+type PingConf struct {
+	// Count is how many pings will be attempted
+	// 0 for unlimited pings
+	Count int
 
-func getGlobalPinger() *Pinger {
-	globalPingerLock.Lock()
-	defer globalPingerLock.Unlock()
-	if globalPinger != nil {
-		return globalPinger
-	}
-	if globalPinger == nil {
-		globalPinger = NewPinger()
-	}
-	return globalPinger
+	// Interval is the interval between pings
+	// 0 for flood ping, sending a new packet as soon as the previous one is replied or times out
+	Interval time.Duration
+
+	// RandDelay causes the first ping to be delayed by a random amount up to interval
+	RandDelay bool
+
+	// Timeout is how long to wait before considering a ping timed out
+	Timeout time.Duration
+
+	// RetryOnResolveError will cause callback to be called on resolution errors
+	// Resolution errors can be identied by error type net.DNSError
+	// Otherwise Ping() will stop and retun an error on resolution errors
+	RetryOnResolveError bool
+
+	// RetryOnSendError will cause callback to be called on send errors.
+	// Otherwise Ping() will stop and return an error on send errors.
+	RetryOnSendError bool
+
+	// ReResolveEvery caused pinger to re-resolve dns for a host every n pings.
+	// 0 to disable. 1 to re-resolve every ping
+	ReResolveEvery int
 }
 
-// NewPinger returns a new Pinger
-func NewPinger() *Pinger {
-	return &Pinger{
-		v4Pinger: protoPinger.New(4),
-		v6Pinger: protoPinger.New(6),
+func DefaultPingConf() *PingConf {
+	return &PingConf{
+		Interval: time.Second,
+		Timeout:  time.Second,
 	}
 }
 
-func (p *Pinger) getProtoPinger(ip net.IP) *protoPinger.Pinger {
-	if ip != nil && ip.To4() != nil {
-		return p.v4Pinger
+func (p *PingConf) validate() *PingConf {
+	if p == nil {
+		p = DefaultPingConf()
 	}
-	return p.v6Pinger
+	return p
+}
+
+var ErrTimedOut = pending.ErrTimedOut
+var ErrSeqWrapped = errors.New("response not recieved before sequence wrapped")
+
+type HandleFunc func(context.Context, *ping.Ping, error)
+
+// Ping starts a ping using the global conn
+// see Conn.Ping for details
+func Ping(host string, hf HandleFunc, conf *PingConf) error {
+	return DefaultConn().Ping(host, hf, conf)
+}
+
+// PingWithContext starts a ping using the global conn
+// see Conn.PingWithContext for details
+func PingWithContext(ctx context.Context, host string, hf HandleFunc, conf *PingConf) error {
+	return DefaultConn().PingWithContext(ctx, host, hf, conf)
+}
+
+// Ping starts a ping. See PingWithContext for details
+func (c *Conn) Ping(host string, hf HandleFunc, conf *PingConf) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	return c.PingWithContext(ctx, host, hf, conf)
+}
+
+// PingWithContext starts a new ping to host calling cb every time a reply is recieved or a packet times out
+// Timed out packets will return an error of context.DeadlineExceeded to cb
+// Ping will send up to count pings, or unlimited if count is 0
+// Ping will send a ping each interval. If interval is 0 ping will flood ping, sending a new packet as soon
+// as the previous one is returned or timed out
+// Packets will be considered timed out after timeout. 0 will disable timeouts
+// With a disabled, or very long timeout and a short interval the packet sequence may rollover and try to reuse
+// a packet sequence before the last packet sent with that sequence is recieved. If this happens, the callback or the
+// first packet will never be triggered
+// GoRoutines will be leaked if context is never canceled
+func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, conf *PingConf) error {
+	conf = conf.validate()
+
+	pm := pending.NewMap()
+	pktWg := sync.WaitGroup{}
+
+	tick := ticker.NewTicker(conf.Interval, conf.RandDelay, pktWg.Wait)
+	tickCtx, tickCancel := context.WithCancel(ctx)
+	go tick.Run(tickCtx)
+
+	phf := func(p *ping.Ping, err error) { hf(ctx, p, err) }
+	var id, seq uint16
+	var dst *net.IPAddr
+	var sent int = -1 // number of packets attempted to be sent
+	var lCancel func()
+	var err error
+	for {
+		sent++
+		if conf.Count > 0 && sent >= conf.Count {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-tick.C:
+		}
+
+		pktWg.Add(1)
+		tick.Cont()
+
+		if id == 0 {
+			id = uint16(rand.Intn(1<<16-2) + 1)
+		}
+		seq = uint16(sent)
+
+		p := &pending.Ping{P: &ping.Ping{
+			Host:    host,
+			ID:      int(id),
+			Seq:     int(seq),
+			TimeOut: conf.Timeout,
+		}}
+		p.Lock()
+		var pCtx context.Context
+		pCtx, p.Cancel = context.WithCancel(ctx)
+
+		if dst == nil || (conf.ReResolveEvery != 0 && sent%conf.ReResolveEvery == 0) {
+			var nDst *net.IPAddr
+			nDst, p.Err = net.ResolveIPAddr("ip", host)
+			if p.Err != nil {
+				p.Unlock()
+				p.Cancel()
+				if conf.RetryOnResolveError {
+					go p.Wait(pCtx, pm, phf, pktWg.Done)
+					continue
+				}
+				pktWg.Done()
+				return p.Err
+			}
+
+			if dst == nil || !nDst.IP.Equal(dst.IP) { // IP changed
+				if lCancel != nil { // cancel the current listener
+					lCancel()
+					lCancel = nil
+				}
+				dst = nDst
+			}
+		}
+		p.P.Dst = dst.IP
+		p.P.Src = c.lm.SrcAddr(dst.IP)
+
+		if lCancel == nil { // we don't have a listner yet for this dst
+			// Register with listenmap
+			var lctx context.Context
+			lctx, lCancel = context.WithCancel(ctx)
+			err = c.lm.Add(lctx, dst.IP, id, pm.OnRecv)
+			if err != nil {
+				p.Unlock()
+				p.Cancel()
+				pktWg.Done() // we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
+
+				if err == listenMap.ErrAlreadyExists { // we already have this listener registered
+					id = 0 // try a different id
+					lCancel()
+					lCancel = nil
+					continue
+				}
+				return err
+			}
+		}
+
+		if opp, ok := pm.Add(p); ok {
+			// we've looped seq and this old pending packet is still hanging around, cancel it
+			opp.SetError(ErrSeqWrapped)
+			opp.Cancel()
+		}
+
+		p.Err = c.lm.Send(p.P, dst)
+
+		if p.Err != nil {
+			p.Unlock()
+			p.Cancel()
+			if conf.RetryOnSendError {
+				go p.Wait(pCtx, pm, phf, pktWg.Done)
+				continue
+			}
+			pktWg.Done()
+			return p.Err
+		}
+
+		if conf.Timeout > 0 {
+			// we're not running wait yet, so nothing is waiting on this ctx, we're replacing it with one with a timeout now
+			// but canceling is a good idea to release resources from the previous ctx
+			p.Cancel()
+			pCtx, p.Cancel = context.WithTimeout(ctx, conf.Timeout)
+		}
+
+		p.Unlock()
+		go p.Wait(pCtx, pm, phf, pktWg.Done)
+	}
+
+	tickCancel()
+	pktWg.Wait()
+	return nil
 }
