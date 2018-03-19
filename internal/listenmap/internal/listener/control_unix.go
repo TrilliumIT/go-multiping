@@ -22,6 +22,23 @@ func setPacketCon(c *icmp.PacketConn) error {
 	default:
 		err = fmt.Errorf("no valid connections")
 	}
+	if err != nil {
+		return err
+	}
+	switch {
+	case c.IPv4PacketConn() != nil:
+		var f ipv4.ICMPFilter
+		f.SetAll(true)
+		f.Accept(ipv4.ICMPTypeEchoReply)
+		err = c.IPv4PacketConn().SetICMPFilter(&f)
+	case c.IPv6PacketConn() != nil:
+		var f ipv6.ICMPFilter
+		f.SetAll(true)
+		f.Accept(ipv6.ICMPTypeEchoReply)
+		err = c.IPv6PacketConn().SetICMPFilter(&f)
+	default:
+		err = fmt.Errorf("no valid connections")
+	}
 	return err
 }
 
