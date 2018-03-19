@@ -39,12 +39,15 @@ var V6Props = &Props{
 }
 
 func getLen(typ icmp.Type) int {
-	m, _ := (&icmp.Message{
+	m, err := (&icmp.Message{
 		Type: typ,
 		Body: &icmp.Echo{
 			Data: make([]byte, ping.TimeSliceLength),
 		},
 	}).Marshal(nil)
+	if err != nil {
+		panic(err)
+	}
 	return len(m)
 }
 

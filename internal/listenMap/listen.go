@@ -131,10 +131,6 @@ func (lm *ListenMap) getIdx(idx index) (callback, bool) {
 	return s, ok
 }
 
-func (lm *ListenMap) del(ip net.IP, id uint16) {
-	lm.delIdx(toIndex(ip, id))
-}
-
 func (lm *ListenMap) delIdx(idx index) {
 	lm.l.Lock()
 	delete(lm.m, idx)

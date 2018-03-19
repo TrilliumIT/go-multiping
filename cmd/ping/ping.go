@@ -112,8 +112,8 @@ func main() {
 		cancel()
 		go func() {
 			time.Sleep(30 * time.Second)
-			_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
-			panic("die")
+			err := pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+			panic(err)
 		}()
 	}()
 

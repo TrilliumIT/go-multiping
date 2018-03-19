@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// Ticker is a ticker for an ICMP sequence
+// C will fire either on the interval, or as soon as Cont is called followed by wait not blocking
 type Ticker struct {
 	C         chan time.Time
 	interval  time.Duration
@@ -14,6 +16,8 @@ type Ticker struct {
 	Cont      func()
 }
 
+// NewTicker reutrns a new ticker. Wait should be a function that will block preventing the next tick from firing
+// wait is only important for flood pings (interval == 0)
 func NewTicker(interval time.Duration, randDelay bool, wait func()) *Ticker {
 	return &Ticker{
 		C:         make(chan time.Time),
@@ -24,6 +28,7 @@ func NewTicker(interval time.Duration, randDelay bool, wait func()) *Ticker {
 	}
 }
 
+// Run runs the ticker. It will stop when context does
 func (it *Ticker) Run(ctx context.Context) {
 	if it.interval > 0 {
 		if it.randDelay {
