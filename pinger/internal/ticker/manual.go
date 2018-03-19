@@ -10,17 +10,19 @@ import (
 type ManualTicker struct {
 	ticker
 	ready chan struct{}
+	tick  chan struct{}
 }
 
+// Ready is to be called by pinger indicating that pinger is ready to recieve another tick
 func (mt *ManualTicker) Ready() {
 	mt.ready <- struct{}{}
 }
 
-// NewFloodTicker reutrns a new flood ticker.
-// Wait should be a function that will block preventing the next tick from firing. A waitgroup for pending packets.
-// Ready must be triggered before the flood ping will wait on wait(). This is necessary to prevent a race between
-// waiting and adding to a waitgroup
-func NewManualTicker() Ticker {
+func (mt *ManualTicker) Tick() {
+	mt.tick <- struct{}{}
+}
+
+func NewManualTicker() *ManualTicker {
 	mt := newManualTicker()
 	return &mt
 }
@@ -29,15 +31,12 @@ func newManualTicker() ManualTicker {
 	return ManualTicker{
 		newTicker(),
 		make(chan struct{}),
+		make(chan struct{}),
 	}
 }
 
 // Run runs the ticker. It will stop when context does
 func (mt *ManualTicker) Run(ctx context.Context) {
-	mt.run(ctx, func() {})
-}
-
-func (mt *ManualTicker) run(ctx context.Context, wait func()) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -47,7 +46,14 @@ func (mt *ManualTicker) run(ctx context.Context, wait func()) {
 
 	loop:
 		for {
-			wait()
+			select {
+			case <-ctx.Done():
+				return
+			case <-mt.ready:
+				continue loop
+			case <-mt.tick:
+			}
+
 			select {
 			case <-ctx.Done():
 				return

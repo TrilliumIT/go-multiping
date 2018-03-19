@@ -21,5 +21,15 @@ func NewFloodTicker(wait func()) Ticker {
 }
 
 func (ft *FloodTicker) Run(ctx context.Context) {
-	ft.ManualTicker.run(ctx, ft.wait)
+	go func() {
+		for {
+			ft.wait()
+			select {
+			case <-ctx.Done():
+				return
+			case ft.ManualTicker.tick <- struct{}{}:
+			}
+		}
+	}()
+	ft.ManualTicker.Run(ctx)
 }

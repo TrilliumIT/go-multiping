@@ -154,7 +154,7 @@ func (c *Conn) NewPinger(ctx context.Context, host string, hf HandleFunc, conf *
 		defer tickCancel()
 		go tick.Run(tickCtx)
 		return c.pingWithTicker(ctx, tick, &pktWg, host, hf, conf)
-	}, tick.Ready
+	}, tick.Tick
 }
 
 func NewPinger(ctx context.Context, host string, hf HandleFunc, conf *PingConf) (run func() error, send func()) {

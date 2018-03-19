@@ -20,6 +20,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 	sent := -1 // number of packets attempted to be sent
 	var lCancel func()
 	var err error
+	tick.Ready()
 	for {
 		sent++
 		if conf.Count > 0 && sent >= conf.Count {
