@@ -44,6 +44,7 @@ func main() {
 	reResolve := flag.Bool("r", false, "")
 	randDelay := flag.Bool("d", false, "")
 	manual := flag.Bool("m", false, "")
+	quiet := flag.Bool("q", false, "")
 	flag.Usage = func() {
 		fmt.Print(usage)
 	}
@@ -67,11 +68,16 @@ func main() {
 		}
 		if err == nil {
 			recieved++
-			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
+			if !*quiet {
+				fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
+			}
 			return
 		}
 
 		dropped++
+		if *quiet {
+			return
+		}
 		if err == pinger.ErrTimedOut {
 			fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
 			return

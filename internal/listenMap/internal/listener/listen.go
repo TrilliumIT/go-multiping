@@ -133,25 +133,46 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 	}()
 
 	// start workers
-	wCh := make(chan *procMsg, buffer)
 	proc := processMessage
 	if workers == 0 {
-		proc = func(p *procMsg) { go processMessage(p) }
-		workers = 1
+		proc = func(p *procMsg) {
+			wWg.Add(1)
+			go func() {
+				processMessage(p)
+				wWg.Done()
+			}()
+		}
 	}
-	wWg.Add(workers)
-	for w := 0; w < workers; w++ {
-		go func() {
-			defer wWg.Done()
-			for {
+
+	if workers == -1 || workers > 0 {
+		wCh := make(chan *procMsg, buffer)
+		if workers == -1 {
+			proc = func(p *procMsg) {
 				select {
-				case <-ctx.Done():
+				case wCh <- p:
 					return
-				case p := <-wCh:
-					proc(p)
+				default:
 				}
+				wWg.Add(1)
+				go func() {
+					runWorker(ctx, wCh)
+					wWg.Done()
+				}()
+				wCh <- p
 			}
-		}()
+		}
+		if workers > 0 {
+			proc = func(p *procMsg) {
+				wCh <- p
+			}
+		}
+		for w := 0; w < workers; w++ {
+			wWg.Add(1)
+			go func() {
+				runWorker(ctx, wCh)
+				wWg.Done()
+			}()
+		}
 	}
 
 	wWg.Add(1)
@@ -171,10 +192,21 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 				continue
 			}
 			r.Recieved = time.Now()
-			wCh <- &procMsg{ctx, r, getCb}
+			proc(&procMsg{ctx, r, getCb})
 		}
 	}()
 	return nil
+}
+
+func runWorker(ctx context.Context, wCh <-chan *procMsg) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case p := <-wCh:
+			processMessage(p)
+		}
+	}
 }
 
 type procMsg struct {
