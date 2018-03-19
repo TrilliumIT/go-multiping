@@ -22,10 +22,10 @@ func NewConn() *Conn {
 }
 
 // SetWorkers sets a number of workers to process incoming packets and distribute them to the appropriate handlers
+// <-1 disables workers entirely and synchronously distributes the incoming packet before listening for a new one. This is the default.
 // -1 enables automatic worker allocation. Any time packet processing would block, a new worker is started. Workers remain active until all active pings stop.
 // 0 disalbes workers, causing each incoming packet to start a new goroutine to handle it. This can cause incoming packets to be missed.
 // A postive number pre-allocates a set number of workers
-// <-1 disables workers entirely and synchronously distributes the incoming packet before listening for a new one.
 func (c *Conn) SetWorkers(n int) {
 	c.lm.SetWorkers(n)
 }

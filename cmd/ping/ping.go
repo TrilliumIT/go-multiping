@@ -18,7 +18,7 @@ import (
 var usage = `
 Usage:
 
-    ping [-c count] [-i interval] [-t timeout] [-w workers] [-b buffersize] [-r] [-d] [-m] host host2 host3
+    ping [-c count] [-i interval] [-t timeout] [-cw workers] [-w workers] [-b buffersize] [-r] [-d] [-m] host host2 host3
 
 Examples:
 
@@ -39,7 +39,8 @@ func main() {
 	timeout := flag.Duration("t", time.Second, "")
 	interval := flag.Duration("i", time.Second, "")
 	count := flag.Int("c", 0, "")
-	workers := flag.Int("w", 0, "")
+	connWorkers := flag.Int("cw", -1, "")
+	workers := flag.Int("cw", -1, "")
 	buffer := flag.Int("b", 0, "")
 	reResolve := flag.Bool("r", false, "")
 	randDelay := flag.Bool("d", false, "")
@@ -86,7 +87,7 @@ func main() {
 		fmt.Printf("Packet errored from %v seq: %v id: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, err)
 	}
 
-	pinger.DefaultConn().SetWorkers(*workers)
+	pinger.DefaultConn().SetWorkers(*connWorkers)
 	pinger.DefaultConn().SetBuffer(*buffer)
 	conf := pinger.DefaultPingConf()
 	conf.RetryOnResolveError = *reResolve

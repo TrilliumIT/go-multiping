@@ -133,6 +133,33 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 	}()
 
 	// start workers
+	proc := getProcFunc(ctx, workers, buffer, &wWg)
+
+	wWg.Add(1)
+	go func() {
+		defer wWg.Done()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			r := &messages.RecvMsg{
+				Payload: make([]byte, l.Props.ExpectedLen),
+			}
+			err := readPacket(l.conn, r)
+			if err != nil {
+				continue
+			}
+			r.Recieved = time.Now()
+			proc(&procMsg{ctx, r, getCb})
+		}
+	}()
+	return nil
+}
+
+func getProcFunc(ctx context.Context, workers, buffer int, wWg *sync.WaitGroup) func(*procMsg) {
+	// start workers
 	proc := processMessage
 	if workers == 0 {
 		proc = func(p *procMsg) {
@@ -174,28 +201,7 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 			}()
 		}
 	}
-
-	wWg.Add(1)
-	go func() {
-		defer wWg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-			r := &messages.RecvMsg{
-				Payload: make([]byte, l.Props.ExpectedLen),
-			}
-			err := readPacket(l.conn, r)
-			if err != nil {
-				continue
-			}
-			r.Recieved = time.Now()
-			proc(&procMsg{ctx, r, getCb})
-		}
-	}()
-	return nil
+	return proc
 }
 
 func runWorker(ctx context.Context, wCh <-chan *procMsg) {

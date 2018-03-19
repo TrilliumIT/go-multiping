@@ -44,6 +44,15 @@ type PingConf struct {
 	// ReResolveEvery caused pinger to re-resolve dns for a host every n pings.
 	// 0 to disable. 1 to re-resolve every ping
 	ReResolveEvery int
+
+	// Workers is a number of workers to run handlers.
+	// <-1 disables workers entirely and synchronously processes the incoming packet before listening for a new one.
+	// This will prevent new pings from being able to be sent until the last one is handled, either returned or timed out.
+	// -1 enables automatic worker allocation. Any time packet processing would block, a new worker is started. Workers remain active until all active pings stop. This is the default.
+	// 0 disables workers, causing each incoming packet to start a new goroutine to handle it.
+	// 0 and -1 can cause a memory leak while packets time out if timeout is less than interval. This can also cause a memory leak if it takes longer to run handler than interval.
+	// A postive number pre-allocates a set number of workers
+	Workers int
 }
 
 // DefaultPingConf returns a default ping configuration with an interval and timeout of 1 second
@@ -51,6 +60,7 @@ func DefaultPingConf() *PingConf {
 	return &PingConf{
 		Interval: time.Second,
 		Timeout:  time.Second,
+		Workers:  -1,
 	}
 }
 
