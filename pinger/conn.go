@@ -3,19 +3,19 @@ package pinger
 import (
 	"sync"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenMap"
+	"github.com/TrilliumIT/go-multiping/internal/listenmap"
 )
 
 // Conn is a raw socket connection (one for ipv4 and one for ipv6). Connections are only actively listening when there are active pings going on
 // Conn must be created via NewConn
 type Conn struct {
-	lm *listenMap.ListenMap
+	lm *listenmap.ListenMap
 }
 
 // NewConn returns a new Conn
 func NewConn() *Conn {
 	c := &Conn{
-		lm: listenMap.NewListenMap(),
+		lm: listenmap.NewListenMap(),
 	}
 	c.lm.SetWorkers(-1)
 	return c

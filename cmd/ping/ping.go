@@ -144,7 +144,10 @@ func main() {
 		go func() {
 			fmt.Println("Press 'Enter' to send pings...")
 			for {
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				_, err := bufio.NewReader(os.Stdin).ReadBytes('\n')
+				if err != nil {
+					panic(err)
+				}
 				for _, s := range sends {
 					s()
 				}

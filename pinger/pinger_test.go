@@ -9,14 +9,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenMap"
+	"github.com/TrilliumIT/go-multiping/internal/listenmap"
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
 func TestDupListener(t *testing.T) {
 	assert := assert.New(t)
 	assert.NoError(DefaultConn().lm.Add(context.Background(), net.ParseIP("127.0.0.1"), 5, nil))
-	assert.Equal(DefaultConn().lm.Add(context.Background(), net.ParseIP("127.0.0.1"), 5, nil), listenMap.ErrAlreadyExists)
+	assert.Equal(DefaultConn().lm.Add(context.Background(), net.ParseIP("127.0.0.1"), 5, nil), listenmap.ErrAlreadyExists)
 }
 
 type counter struct {

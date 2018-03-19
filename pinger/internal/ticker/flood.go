@@ -2,7 +2,7 @@ package ticker
 
 import "context"
 
-// Ticker is a ticker for an ICMP sequence
+// FloodTicker is a ticker that sends packets as fast as they are recieved
 // C will fire either on the interval, or as soon as Cont is called followed by wait not blocking
 type FloodTicker struct {
 	ManualTicker
@@ -22,11 +22,13 @@ func NewFloodTicker(wait func()) Ticker {
 	}
 }
 
+// Ready informs the ticker that the wait function is ready to be waited on without racing
 func (ft *FloodTicker) Ready() {
 	ft.ready <- struct{}{}
 	ft.ManualTicker.Ready()
 }
 
+// Run runs the flood ticker
 func (ft *FloodTicker) Run(ctx context.Context) {
 	go func() {
 		for {

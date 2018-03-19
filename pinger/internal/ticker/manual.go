@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// Ticker is a ticker for an ICMP sequence
-// C will fire either on the interval, or as soon as Cont is called followed by wait not blocking
+// ManualTicker is a ticker that allows the caller to manually Tick()
 type ManualTicker struct {
 	ticker
 	ready chan struct{}
@@ -18,10 +17,12 @@ func (mt *ManualTicker) Ready() {
 	mt.ready <- struct{}{}
 }
 
+// Tick ticks the manual ticker
 func (mt *ManualTicker) Tick() {
 	mt.tick <- struct{}{}
 }
 
+// NewManualTicker returns a new ManualTicker
 func NewManualTicker() *ManualTicker {
 	mt := newManualTicker()
 	return &mt

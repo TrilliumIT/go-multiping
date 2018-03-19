@@ -170,6 +170,7 @@ func (c *Conn) NewPinger(ctx context.Context, host string, hf HandleFunc, conf *
 	}, tick.Tick
 }
 
+// NewPinger creates a new pinger for manually sending pings
 func NewPinger(ctx context.Context, host string, hf HandleFunc, conf *PingConf) (run func() error, send func()) {
 	return DefaultConn().NewPinger(ctx, host, hf, conf)
 }

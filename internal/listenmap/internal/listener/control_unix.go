@@ -9,7 +9,7 @@ import (
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenMap/internal/messages"
+	"github.com/TrilliumIT/go-multiping/internal/listenmap/internal/messages"
 )
 
 func setPacketCon(c *icmp.PacketConn) error {

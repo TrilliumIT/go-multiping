@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// Ticker is a ticker for an ICMP sequence
-// C will fire either on the interval, or as soon as Cont is called followed by wait not blocking
+// IntervalTicker is a ticker for an ICMP sequence
 type IntervalTicker struct {
 	ticker
 	interval  time.Duration

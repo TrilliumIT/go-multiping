@@ -6,7 +6,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenMap"
+	"github.com/TrilliumIT/go-multiping/internal/listenmap"
 	"github.com/TrilliumIT/go-multiping/ping"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/pending"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/ticker"
@@ -84,7 +84,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 				// we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
 				run(p.Unlock, p.Cancel, pktWg.Done, lCancel)
 				lCancel = nil
-				if err == listenMap.ErrAlreadyExists { // we already have this listener registered
+				if err == listenmap.ErrAlreadyExists { // we already have this listener registered
 					id = 0 // try a different id
 					continue
 				}

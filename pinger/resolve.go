@@ -4,7 +4,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenMap"
+	"github.com/TrilliumIT/go-multiping/internal/listenmap"
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
@@ -19,7 +19,7 @@ func resolve(dst *net.IPAddr, host string) (*net.IPAddr, bool, error) {
 	return rDst, changed, err
 }
 
-func addListener(ctx context.Context, lm *listenMap.ListenMap, ip net.IP, id uint16, h func(context.Context, *ping.Ping)) (func(), error) {
+func addListener(ctx context.Context, lm *listenmap.ListenMap, ip net.IP, id uint16, h func(context.Context, *ping.Ping)) (func(), error) {
 	lctx, lCancel := context.WithCancel(ctx)
 	err := lm.Add(lctx, ip, id, h)
 	return lCancel, err

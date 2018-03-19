@@ -1,4 +1,4 @@
-package listenMap
+package listenmap
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenMap/internal/listener"
+	"github.com/TrilliumIT/go-multiping/internal/listenmap/internal/listener"
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
