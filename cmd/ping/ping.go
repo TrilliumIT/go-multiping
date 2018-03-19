@@ -70,22 +70,35 @@ func main() {
 		}
 		if err == nil {
 			recieved++
-			if !*quiet {
-				fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
-			}
+			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
 			return
 		}
 
 		dropped++
-		if *quiet {
-			return
-		}
 		if err == pinger.ErrTimedOut {
 			fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
 			return
 		}
 
 		fmt.Printf("Packet errored from %v seq: %v id: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, err)
+	}
+	if *quiet {
+		handle = func(ctx context.Context, pkt *ping.Ping, err error) {
+			select {
+			case <-ctx.Done():
+				clock.Unlock()
+				return
+			default:
+				clock.Lock()
+				if err == nil {
+					recieved++
+					clock.Unlock()
+					return
+				}
+				dropped++
+				clock.Unlock()
+			}
+		}
 	}
 
 	pinger.DefaultConn().SetWorkers(*connWorkers)
