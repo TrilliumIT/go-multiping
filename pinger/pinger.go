@@ -138,6 +138,7 @@ func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, 
 	tickCtx, tickCancel := context.WithCancel(ctx)
 	defer tickCancel()
 	go tick.Run(tickCtx)
+	tick.Ready()
 
 	phf := func(p *ping.Ping, err error) { hf(ctx, p, err) }
 	var id, seq uint16
