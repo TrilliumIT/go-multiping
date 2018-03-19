@@ -7,11 +7,13 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 
+// Map holds a map of pending icmps by sequence
 type Map struct {
 	m map[uint16]*Ping
 	l sync.Mutex
 }
 
+// NewMap returns a new map
 func NewMap() *Map {
 	return &Map{
 		m: make(map[uint16]*Ping),
@@ -27,12 +29,14 @@ func (pm *Map) Add(pp *Ping) (*Ping, bool) {
 	return opp, ok
 }
 
+// Del deletes an item from the map
 func (pm *Map) Del(seq uint16) {
 	pm.l.Lock()
 	delete(pm.m, seq)
 	pm.l.Unlock()
 }
 
+// Get gets an entry from the map
 func (pm *Map) Get(seq uint16) (*Ping, bool) {
 	pm.l.Lock()
 	opp, ok := pm.m[seq]
@@ -40,6 +44,7 @@ func (pm *Map) Get(seq uint16) (*Ping, bool) {
 	return opp, ok
 }
 
+// OnRecv handles recieved packets, calling the handler in the map
 func (pm *Map) OnRecv(ctx context.Context, p *ping.Ping) {
 	seq := uint16(p.Seq)
 	pp, ok := pm.Get(seq)

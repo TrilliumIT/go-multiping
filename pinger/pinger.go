@@ -28,11 +28,11 @@ type PingConf struct {
 	// 0 for flood ping, sending a new packet as soon as the previous one is replied or times out
 	Interval time.Duration
 
-	// RandDelay causes the first ping to be delayed by a random amount up to interval
-	RandDelay bool
-
 	// Timeout is how long to wait before considering a ping timed out
 	Timeout time.Duration
+
+	// RandDelay causes the first ping to be delayed by a random amount up to interval
+	RandDelay bool
 
 	// RetryOnResolveError will cause callback to be called on resolution errors
 	// Resolution errors can be identied by error type net.DNSError
