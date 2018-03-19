@@ -27,10 +27,13 @@ func (pm *Map) Add(pp *Ping) (*Ping, bool) {
 	return opp, ok
 }
 
-func (pm *Map) Del(seq uint16) {
+// Del returns true if the item existed to be deleted
+func (pm *Map) Del(seq uint16) bool {
 	pm.l.Lock()
+	_, ok := pm.m[seq]
 	delete(pm.m, seq)
 	pm.l.Unlock()
+	return ok
 }
 
 func (pm *Map) Get(seq uint16) (*Ping, bool) {

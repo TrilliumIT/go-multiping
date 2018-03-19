@@ -131,7 +131,13 @@ func (l *Listener) Run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 	wCh := make(chan *procMsg, buffer)
 	proc := processMessage
 	if workers == 0 {
-		proc = func(p *procMsg) { go processMessage(p) }
+		proc = func(p *procMsg) {
+			wWg.Add(1)
+			go func() {
+				defer wWg.Done()
+				processMessage(p)
+			}()
+		}
 		workers = 1
 	}
 	wWg.Add(workers)
@@ -189,5 +195,9 @@ func processMessage(pm *procMsg) {
 		return
 	}
 
+	select {
+	case <-pm.ctx.Done():
+		return
+	}
 	cb(pm.ctx, p)
 }
