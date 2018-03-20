@@ -12,17 +12,18 @@ import (
 	"github.com/TrilliumIT/go-multiping/pinger/internal/ticker"
 )
 
-func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pendingPkt *sync.WaitGroup, host string, hf HandleFunc, conf *PingConf) error {
+func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, host string, hf HandleFunc, conf *PingConf) error {
+	pendingPkt := sync.WaitGroup{}
 	pm := pending.NewMap()
-	phf := func(p *ping.Ping, err error) { hf(ctx, p, err) }
+	pingHandler := func(p *ping.Ping, err error) { hf(ctx, p, err) }
 	var id, seq uint16
 	var dst *net.IPAddr
 	sent := -1 // number of packets attempted to be sent
 	var lCancel func()
 	var err error
-	wCtx, wCancel := context.WithCancel(ctx)
-	defer wCancel()
-	proc, wWait := getProcFunc(wCtx, conf.Workers, conf.Buffer, pm, phf)
+	wCtx, cancelWorkers := context.WithCancel(ctx)
+	defer cancelWorkers()
+	process, waitWorkers := getProcFunc(wCtx, conf.Workers, conf.Buffer, pm, pingHandler)
 	tick.Ready()
 	for {
 		sent++
@@ -38,7 +39,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pendingPk
 		}
 
 		pendingPkt.Add(1)
-		tick.Ready()
+		tick.Ready(pendingPkt.Wait)
 
 		if id == 0 {
 			id = uint16(rand.Intn(1<<16-2) + 1)
@@ -61,7 +62,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pendingPk
 			if p.Err != nil {
 				run(p.Unlock, p.Cancel)
 				if conf.RetryOnResolveError {
-					proc(pCtx, p, pendingPkt.Done)
+					process(pCtx, p, pendingPkt.Done)
 					continue
 				}
 				run(pendingPkt.Done, lCancel)
@@ -102,7 +103,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pendingPk
 		if p.Err != nil {
 			run(p.Unlock, p.Cancel)
 			if conf.RetryOnSendError {
-				proc(pCtx, p, pendingPkt.Done)
+				process(pCtx, p, pendingPkt.Done)
 				continue
 			}
 			run(pendingPkt.Done, lCancel)
@@ -117,11 +118,11 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pendingPk
 		}
 
 		run(p.Unlock)
-		proc(pCtx, p, pendingPkt.Done)
+		process(pCtx, p, pendingPkt.Done)
 	}
 
-	wCancel()
-	wWait()
+	cancelWorkers()
+	waitWorkers()
 	pendingPkt.Wait()
 	run(lCancel)
 	return nil

@@ -11,7 +11,7 @@ import (
 // Run starts the ticker
 type Ticker interface {
 	C() <-chan time.Time
-	Ready()
+	Ready(...func())
 	Run(context.Context)
 }
 
@@ -23,7 +23,7 @@ func (t *ticker) C() <-chan time.Time {
 	return t.c
 }
 
-func (t *ticker) Ready() {}
+func (t *ticker) Ready(...func()) {}
 
 func newTicker() ticker {
 	return ticker{make(chan time.Time)}

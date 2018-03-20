@@ -13,7 +13,7 @@ type ManualTicker struct {
 }
 
 // Ready is to be called by pinger indicating that pinger is ready to recieve another tick
-func (mt *ManualTicker) Ready() {
+func (mt *ManualTicker) Ready(...func()) {
 	mt.ready <- struct{}{}
 }
 

@@ -6,25 +6,20 @@ import "context"
 // C will fire either on the interval, or as soon as Cont is called followed by wait not blocking
 type FloodTicker struct {
 	ManualTicker
-	ready chan struct{}
-	wait  func()
+	ready chan []func()
 }
 
 // NewFloodTicker reutrns a new flood ticker.
-// Wait should be a function that will block the next tick from firing. For example: A waitgroup for pending packets.
-// Ready must be triggered before the flood ping will wait on wait(). This is necessary to prevent a race between
-// waiting and adding to a waitgroup
-func NewFloodTicker(wait func()) Ticker {
+func NewFloodTicker() Ticker {
 	return &FloodTicker{
 		newManualTicker(),
-		make(chan struct{}),
-		wait,
+		make(chan []func()),
 	}
 }
 
-// Ready informs the ticker that the wait function is ready to be waited on without racing
-func (ft *FloodTicker) Ready() {
-	ft.ready <- struct{}{}
+// Ready tells the ticker to wait on any passed in functions, then execute the next tick.
+func (ft *FloodTicker) Ready(f ...func()) {
+	ft.ready <- f
 	ft.ManualTicker.Ready()
 }
 
@@ -35,10 +30,12 @@ func (ft *FloodTicker) Run(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ft.ready:
+			case wf := <-ft.ready:
+				for _, f := range wf {
+					f()
+				}
 			}
 
-			ft.wait()
 			select {
 			case <-ctx.Done():
 				return

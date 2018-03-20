@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math/rand"
-	"sync"
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping"
@@ -143,19 +142,18 @@ func PingWithContext(ctx context.Context, host string, hf HandleFunc, conf *Ping
 func (c *Conn) PingWithContext(ctx context.Context, host string, hf HandleFunc, conf *PingConf) error {
 	conf = conf.validate()
 
-	pktWg := sync.WaitGroup{}
 	var tick ticker.Ticker
 	if conf.Interval > 0 {
 		tick = ticker.NewIntervalTicker(conf.Interval, conf.RandDelay)
 	} else {
-		tick = ticker.NewFloodTicker(pktWg.Wait)
+		tick = ticker.NewFloodTicker()
 	}
 	tickCtx, tickCancel := context.WithCancel(ctx)
 	defer tickCancel()
 	go tick.Run(tickCtx)
 	tick.Ready()
 
-	return c.pingWithTicker(ctx, tick, &pktWg, host, hf, conf)
+	return c.pingWithTicker(ctx, tick, host, hf, conf)
 }
 
 // NewPinger creates a new pinger for manually sending pings. See https://godoc.org/github.com/TrilliumIT/go-multiping/pinger#Conn.NewPinger
@@ -173,13 +171,12 @@ func NewPinger(ctx context.Context, host string, hf HandleFunc, conf *PingConf) 
 func (c *Conn) NewPinger(ctx context.Context, host string, hf HandleFunc, conf *PingConf) (run func() error, send func()) {
 	conf = conf.validate()
 
-	pktWg := sync.WaitGroup{}
 	tick := ticker.NewManualTicker()
 	tickCtx, tickCancel := context.WithCancel(ctx)
 
 	return func() error {
 		defer tickCancel()
 		go tick.Run(tickCtx)
-		return c.pingWithTicker(ctx, tick, &pktWg, host, hf, conf)
+		return c.pingWithTicker(ctx, tick, host, hf, conf)
 	}, tick.Tick
 }
