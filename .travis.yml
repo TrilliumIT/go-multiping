@@ -10,4 +10,4 @@ before_install:
   - go get github.com/mattn/goveralls
 
 script:
-  - $GOPATH/bin/goveralls -service=travis-ci -race -flags="-exec" -flags="sudo" -flags="timeout" -flags="5m" -show -v
+  - $GOPATH/bin/goveralls -service=travis-ci -race -flags="-exec" -flags="sudo" -flags="-timeout" -flags="5m" -show -v
