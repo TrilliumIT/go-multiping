@@ -2,6 +2,7 @@ package pinger
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -16,7 +17,7 @@ import (
 func TestDupListener(t *testing.T) {
 	assert := assert.New(t)
 	assert.NoError(DefaultConn().lm.Add(context.Background(), net.ParseIP("127.0.0.1"), 5, nil))
-	assert.Equal(DefaultConn().lm.Add(context.Background(), net.ParseIP("127.0.0.1"), 5, nil), listenmap.ErrAlreadyExists)
+	assert.Equal(listenmap.ErrAlreadyExists, DefaultConn().lm.Add(context.Background(), net.ParseIP("127.0.0.1"), 5, nil))
 }
 
 type counter struct {
@@ -36,25 +37,61 @@ func (c *counter) get() int {
 	return c.i
 }
 
-func testPingsWithCount(t *testing.T, c *PingConf) {
-	t.Parallel()
+const addTimeout = 5 * time.Second
+
+func testPingsWithCount(t *testing.T, cf *PingConf) {
 	assert := assert.New(t)
+	assert.NotEqual(0, cf.Count, "Count test should not have 0 count")
+	to := time.Duration(cf.Count)*cf.Interval + addTimeout
+	if !assert.True(to >= addTimeout && to < 3*addTimeout) {
+		assert.FailNow("bad timeout")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	time.AfterFunc(to, func() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		assert.Fail("test took too long")
+		cancel()
+	})
 	r := &counter{}
 	h := func(ctx context.Context, p *ping.Ping, err error) {
 		assert.NoError(err)
 		assert.NotNil(p)
 		r.add()
 	}
-	assert.NoError(Ping("127.0.0.1", h, c))
-	assert.Equal(r.get(), c.Count)
+	assert.NoError(PingWithContext(ctx, "127.0.0.1", h, cf))
+	assert.Equal(cf.Count, r.get())
+	cancel()
 }
 
-func testPingsWithCancel(t *testing.T, c *PingConf, cancelAfter int) {
-	t.Parallel()
+func testPingsWithCancel(t *testing.T, cf *PingConf) {
 	assert := assert.New(t)
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cancelAfter := cf.Count
+	assert.NotEqual(0, cancelAfter, "cancelAfter should be 0")
+	to := time.Duration(cf.Count)*cf.Interval + addTimeout
+	if !assert.True(to >= addTimeout && to < 3*addTimeout) {
+		assert.FailNow("bad timeout")
+	}
+	cf.Count = 0
+	time.AfterFunc(to, func() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		assert.Fail("test took too long")
+		cancel()
+	})
 	r := &counter{}
 	h := func(ctx context.Context, p *ping.Ping, err error) {
+		r.l.Lock()
+		defer r.l.Unlock()
 		select {
 		case <-ctx.Done():
 			return
@@ -62,55 +99,93 @@ func testPingsWithCancel(t *testing.T, c *PingConf, cancelAfter int) {
 		}
 		assert.NoError(err)
 		assert.NotNil(p)
-		r.add()
-		if r.get() >= cancelAfter {
+		r.i++
+		if r.i >= cancelAfter {
 			cancel()
 		}
 	}
-	assert.NoError(PingWithContext(ctx, "127.0.0.1", h, c))
-	assert.Equal(r.get(), cancelAfter)
+	assert.NoError(PingWithContext(ctx, "127.0.0.1", h, cf))
+	assert.Equal(cancelAfter, r.get())
 }
 
-func Test1Ping(t *testing.T) {
-	c := DefaultPingConf()
-	c.Count = 1
-	testPingsWithCount(t, c)
-}
-
-func Test1PingC(t *testing.T) {
-	c := DefaultPingConf()
-	c.Count = 0
-	testPingsWithCancel(t, c, 1)
-}
-
-func Test10Pings(t *testing.T) {
-	c := DefaultPingConf()
-	c.Count = 0
-	c.Interval = time.Millisecond
-	testPingsWithCancel(t, c, 10)
-}
-
-func TestDNSError(t *testing.T) {
-	t.Parallel()
-	assert := assert.New(t)
-	c := DefaultPingConf()
-	_, ok := Ping("foo.test", nil, c).(*net.DNSError)
-	assert.True(ok)
-}
-
-func TestDNSErrorRetry(t *testing.T) {
-	t.Parallel()
-	assert := assert.New(t)
-	c := DefaultPingConf()
-	c.Count = 3
-	c.RetryOnResolveError = true
-	r := &counter{}
-	h := func(ctx context.Context, p *ping.Ping, err error) {
-		_, ok := err.(*net.DNSError)
-		assert.True(ok)
-		assert.NotNil(p)
-		r.add()
+func runTests(t *testing.T, cf *PingConf) {
+	tests := map[string]func(*testing.T, *PingConf){
+		"PingsWithCount":  testPingsWithCount,
+		"PingsWithCancel": testPingsWithCancel,
 	}
-	assert.NoError(Ping("foo.test", h, c))
-	assert.Equal(r.get(), c.Count)
+	for tn, tt := range tests {
+		tcf := DefaultPingConf()
+		tcf.Workers = cf.Workers
+		tcf.Count = cf.Count
+		tcf.Interval = cf.Interval
+		t.Run(tn, func(t *testing.T) { tt(t, tcf) })
+	}
+}
+
+func testIntervals(t *testing.T, cf *PingConf) {
+	intervals := []time.Duration{
+		0,
+		time.Nanosecond,
+		time.Microsecond,
+		time.Millisecond,
+		20 * time.Millisecond,
+	}
+	for _, i := range intervals {
+		n := fmt.Sprintf("%vInterval", i)
+		tcf := DefaultPingConf()
+		tcf.Workers = cf.Workers
+		tcf.Count = cf.Count
+		tcf.Interval = i
+		t.Run(n, func(t *testing.T) { runTests(t, tcf) })
+	}
+}
+
+func testCounts(t *testing.T, cf *PingConf) {
+	counts := []int{
+		1,
+		2,
+		10,
+	}
+	for _, c := range counts {
+		n := fmt.Sprintf("%vCount", c)
+		tcf := DefaultPingConf()
+		tcf.Workers = cf.Workers
+		tcf.Count = c
+		t.Run(n, func(t *testing.T) { testIntervals(t, tcf) })
+	}
+}
+
+func testWorkers(t *testing.T) {
+	workers := []int{
+		-2,
+		-1,
+		0,
+		1,
+		2,
+	}
+	for _, w := range workers {
+		n := fmt.Sprintf("%vWorkers", w)
+		tcf := DefaultPingConf()
+		tcf.Workers = w
+		t.Run(n, func(t *testing.T) { testCounts(t, tcf) })
+	}
+}
+
+func testConnWorkers(t *testing.T) {
+	conWorkers := []int{
+		-2,
+		-1,
+		0,
+		1,
+		2,
+	}
+	for _, cw := range conWorkers {
+		n := fmt.Sprintf("Test%vConnWorkers", cw)
+		DefaultConn().SetWorkers(cw)
+		t.Run(n, testWorkers)
+	}
+}
+
+func TestOptions(t *testing.T) {
+	testConnWorkers(t)
 }

@@ -13,6 +13,8 @@ import (
 
 	"github.com/TrilliumIT/go-multiping/ping"
 	"github.com/TrilliumIT/go-multiping/pinger"
+
+	"github.com/pkg/profile"
 )
 
 var usage = `
@@ -36,6 +38,7 @@ Examples:
 `
 
 func main() {
+	defer profile.Start().Stop()
 	timeout := flag.Duration("t", time.Second, "")
 	interval := flag.Duration("i", time.Second, "")
 	count := flag.Int("c", 0, "")
