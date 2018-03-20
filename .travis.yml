@@ -6,9 +6,11 @@ go:
   - "1.10"
 
 before_script:
+  - ip addr
+  - sudo iptables -L
   - echo 0 | sudo tee /proc/sys/net/ipv6/conf/all/disable_ipv6
   - ip addr
-  - ifconfig
+  - sudo iptables -L
   - ping -c 1 ::1
   - ping -c 1 127.0.0.1
   - ping -c 1 127.0.0.2
