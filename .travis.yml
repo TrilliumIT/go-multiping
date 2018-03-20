@@ -8,6 +8,12 @@ go:
 before_install:
   - echo 0 | sudo tee /proc/sys/net/ipv6/conf/all/disable_ipv6
   - go get github.com/mattn/goveralls
+  - ping -c 1 ::1
+  - ping -c 1 127.0.0.1
+  - ping -c 1 127.0.0.2
+  - ping -c 1 127.0.0.3
+  - ping -c 1 127.0.0.4
+  - ping -c 1 127.0.0.5
 
 script:
   - $GOPATH/bin/goveralls -service=travis-ci -race -flags="-exec" -flags="sudo" -flags="-timeout" -flags="5m" -show -v
