@@ -45,7 +45,7 @@ func New(p int) *Listener {
 		var i int
 		pause := make(chan struct{})
 		unpause := func() { pause <- struct{}{} }
-		wait, cancel := func() {}, func() {}
+		cancelAndWait := func() {}
 		for {
 			select {
 			case r := <-l.lockL:
@@ -58,7 +58,7 @@ func New(p int) *Listener {
 			case r := <-l.addL:
 				i += 1
 				if i == 1 {
-					cancel, wait, err = l.run(r.getCb, r.workers, r.buffer)
+					cancelAndWait, err = l.run(r.getCb, r.workers, r.buffer)
 				}
 				r.err <- err
 				err = nil
@@ -69,9 +69,7 @@ func New(p int) *Listener {
 				}
 				if i == 0 {
 					// shut her down
-					_ = l.conn.Close()
-					cancel()
-					wait()
+					cancelAndWait()
 				}
 			}
 		}
@@ -116,33 +114,31 @@ type runParams struct {
 	err     chan<- error
 }
 
-func (l *Listener) run(getCb func(net.IP, uint16) func(context.Context, *ping.Ping), workers int, buffer int) (cancel func(), wait func(), err error) {
+func (l *Listener) run(getCb func(net.IP, uint16) func(context.Context, *ping.Ping), workers int, buffer int) (cancelAndWait func(), err error) {
+	cancelAndWait = func() {}
 	l.conn, err = icmp.ListenPacket(l.Props.Network, l.Props.Src)
 	if err != nil {
-		return func() {}, func() {}, err
+		return cancelAndWait, err
 	}
 	err = setPacketCon(l.conn)
 	if err != nil {
 		_ = l.conn.Close()
-		return func() {}, func() {}, err
+		return cancelAndWait, err
 	}
 
 	// this is not inheriting a context. Each ip has a context, which will decrement the waitgroup when it's done.
-	ctx, cancel := context.WithCancel(context.Background())
+	wCtx, wCancel := context.WithCancel(context.Background())
 
 	// start workers
-	wWg := sync.WaitGroup{}
-	proc := getProcFunc(ctx, workers, buffer, &wWg)
+	proc, wWait := getProcFunc(wCtx, workers, buffer)
 
-	wWg.Add(1)
+	pWg := sync.WaitGroup{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	rWg := sync.WaitGroup{}
+	rWg.Add(1)
 	go func() {
-		defer wWg.Done()
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
 			r := &messages.RecvMsg{
 				Payload: make([]byte, l.Props.ExpectedLen),
 			}
@@ -150,10 +146,27 @@ func (l *Listener) run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 			if err != nil {
 				continue
 			}
+			select {
+			case <-ctx.Done():
+				rWg.Done()
+				return
+			default:
+			}
+			pWg.Add(1)
 			r.Recieved = time.Now()
-			proc(&procMsg{ctx, r, getCb})
+			proc(ctx, r, getCb, pWg.Done)
 		}
 	}()
 
-	return cancel, wWg.Wait, nil
+	cancelAndWait = func() {
+		cancel() // stop conection listener
+		// this is not unblocking readPacket, why?
+		for err := l.conn.Close(); err != nil; err = l.conn.Close() {
+		}
+		rWg.Wait() // wait for connection listener to stop
+		pWg.Wait() // wait for packets to be distributed
+		wCancel()  // stop workers
+		wWait()    // wait for workers to stop
+	}
+	return cancelAndWait, nil
 }

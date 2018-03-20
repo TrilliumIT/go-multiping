@@ -21,8 +21,8 @@ func TestMain(m *testing.M) {
 	go func() {
 		<-c
 		go func() {
-			time.Sleep(5 * time.Second)
-			err := pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+			err := pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			time.Sleep(1 * time.Second)
 			panic(err)
 		}()
 	}()
@@ -93,8 +93,8 @@ func testHosts(t *testing.T, cf PingConf) {
 	hosts := []string{
 		"127.0.0.1",
 		"127.0.0.1",
-		"::1",
-		"::1",
+		//"::1",
+		//"::1",
 		"127.0.0.2",
 		"127.0.0.3",
 	}
