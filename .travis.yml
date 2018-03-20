@@ -11,12 +11,12 @@ before_script:
   - echo 0 | sudo tee /proc/sys/net/ipv6/conf/all/disable_ipv6
   - ip addr
   - sudo iptables -L
-  - ping -c 1 ::1
-  - ping -c 1 127.0.0.1
-  - ping -c 1 127.0.0.2
-  - ping -c 1 127.0.0.3
-  - ping -c 1 127.0.0.4
-  - ping -c 1 127.0.0.5
+  - sudo ping -c 1 ::1
+  - sudo ping -c 1 127.0.0.1
+  - sudo ping -c 1 127.0.0.2
+  - sudo ping -c 1 127.0.0.3
+  - sudo ping -c 1 127.0.0.4
+  - sudo ping -c 1 127.0.0.5
 
 before_install:
   - go get github.com/mattn/goveralls
