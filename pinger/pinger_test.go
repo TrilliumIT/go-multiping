@@ -90,6 +90,11 @@ func testPingsWithCancel(t *testing.T, cf *PingConf) {
 	})
 	r := &counter{}
 	h := func(ctx context.Context, p *ping.Ping, err error) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		r.l.Lock()
 		defer r.l.Unlock()
 		select {
