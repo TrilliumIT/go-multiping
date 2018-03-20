@@ -75,18 +75,18 @@ func (lm *ListenMap) add(ctx context.Context, ip net.IP, id uint16, cb callback)
 		return err
 	}
 	l := lm.getL(ip)
-	l.WgAdd(1)
+	d, err := l.Run(lm.GetCB, lm.workers, lm.buffer)
+	if err != nil {
+		d()
+		return err
+	}
 	go func() {
 		<-ctx.Done()
 		lm.delIdx(idx)
-		l.WgDone()
+		d()
 	}()
 
-	if l.Running() {
-		return nil
-	}
-
-	return l.Run(lm.GetCB, lm.workers, lm.buffer)
+	return nil
 }
 
 // SetWorkers sets the number of workers for a given listener
