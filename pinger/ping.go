@@ -22,7 +22,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pendingPk
 	var err error
 	wCtx, wCancel := context.WithCancel(ctx)
 	defer wCancel()
-	proc := getProcFunc(wCtx, conf.Workers, conf.Buffer, pm, phf)
+	proc, wWait := getProcFunc(wCtx, conf.Workers, conf.Buffer, pm, phf)
 	tick.Ready()
 	for {
 		sent++
@@ -121,6 +121,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pendingPk
 	}
 
 	wCancel()
+	wWait()
 	pendingPkt.Wait()
 	run(lCancel)
 	return nil
