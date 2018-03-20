@@ -12,7 +12,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/pinger/internal/ticker"
 )
 
-func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sync.WaitGroup, host string, hf HandleFunc, conf *PingConf) error {
+func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pendingPkt *sync.WaitGroup, host string, hf HandleFunc, conf *PingConf) error {
 	pm := pending.NewMap()
 	phf := func(p *ping.Ping, err error) { hf(ctx, p, err) }
 	var id, seq uint16
@@ -22,7 +22,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 	var err error
 	wCtx, wCancel := context.WithCancel(ctx)
 	defer wCancel()
-	proc, wWait := getProcFunc(wCtx, conf.Workers, conf.Buffer, pm, phf, pktWg)
+	proc := getProcFunc(wCtx, conf.Workers, conf.Buffer, pm, phf)
 	tick.Ready()
 	for {
 		sent++
@@ -37,7 +37,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 		case <-tick.C():
 		}
 
-		pktWg.Add(1)
+		pendingPkt.Add(1)
 		tick.Ready()
 
 		if id == 0 {
@@ -61,11 +61,10 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 			if p.Err != nil {
 				run(p.Unlock, p.Cancel)
 				if conf.RetryOnResolveError {
-					proc(&procPing{p, pCtx})
-					pktWg.Done()
+					proc(pCtx, p, pendingPkt.Done)
 					continue
 				}
-				run(pktWg.Done, lCancel)
+				run(pendingPkt.Done, lCancel)
 				return p.Err
 			}
 
@@ -82,7 +81,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 			lCancel, err = addListener(ctx, c.lm, dst.IP, id, pm.OnRecv)
 			if err != nil {
 				// we need to call done here, because we're not calling wait on this error. Add errors that arent ErrAlreadyExists are a returnable problem
-				run(p.Unlock, p.Cancel, pktWg.Done, lCancel)
+				run(p.Unlock, p.Cancel, pendingPkt.Done, lCancel)
 				lCancel = nil
 				if err == listenmap.ErrAlreadyExists { // we already have this listener registered
 					id = 0 // try a different id
@@ -103,11 +102,10 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 		if p.Err != nil {
 			run(p.Unlock, p.Cancel)
 			if conf.RetryOnSendError {
-				proc(&procPing{p, pCtx})
-				pktWg.Done()
+				proc(pCtx, p, pendingPkt.Done)
 				continue
 			}
-			run(pktWg.Done, lCancel)
+			run(pendingPkt.Done, lCancel)
 			return p.Err
 		}
 
@@ -119,13 +117,11 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, pktWg *sy
 		}
 
 		run(p.Unlock)
-		proc(&procPing{p, pCtx})
-		pktWg.Done()
+		proc(pCtx, p, pendingPkt.Done)
 	}
 
-	wWait()
 	wCancel()
-	pktWg.Wait()
+	pendingPkt.Wait()
 	run(lCancel)
 	return nil
 }

@@ -2,90 +2,82 @@ package pinger
 
 import (
 	"context"
-	"sync"
 
 	"github.com/TrilliumIT/go-multiping/ping"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/pending"
 )
 
 type procPing struct {
-	p   *pending.Ping
-	ctx context.Context
+	ctx  context.Context
+	p    *pending.Ping
+	done func()
 }
 
+type procFunc func(context.Context, *pending.Ping, func())
+
 // returns the proto func and a worker waitgroup which should be waited on before canceling ctx
-func getProcFunc(ctx context.Context, workers, buffer int, m *pending.Map, h func(*ping.Ping, error), pktWg *sync.WaitGroup) (func(*procPing), func()) {
+func getProcFunc(ctx context.Context, workers, buffer int, m *pending.Map, h func(*ping.Ping, error)) procFunc {
 	// start workers
-	wWg := sync.WaitGroup{}
 	if workers < -1 {
-		return func(p *procPing) {
-			p.p.Wait(p.ctx, m, h)
-		}, func() {}
+		return func(ctx context.Context, p *pending.Ping, done func()) {
+			p.Wait(ctx, m, h)
+			done()
+		}
 	}
 
 	if workers == 0 {
-		return func(p *procPing) {
-			pktWg.Add(1)
+		return func(ctx context.Context, p *pending.Ping, done func()) {
 			go func() {
-				p.p.Wait(p.ctx, m, h)
-				pktWg.Done()
+				p.Wait(ctx, m, h)
+				done()
 			}()
-		}, func() {}
+		}
 	}
 
 	pCh := make(chan *procPing, buffer)
 	if workers == -1 {
-		return func(p *procPing) {
-			wWg.Add(1)
+		return func(pCtx context.Context, p *pending.Ping, done func()) {
 			select {
 			case <-ctx.Done():
-				wWg.Done()
 				return
-			case pCh <- p:
+			case pCh <- &procPing{pCtx, p, done}:
 				return
 			default:
 			}
-			pktWg.Add(1)
 			go func() {
-				runWorker(ctx, pCh, m, h, wWg.Done)
-				pktWg.Done()
+				runWorker(ctx, pCh, m, h)
 			}()
 			select {
 			case <-ctx.Done():
-				wWg.Done()
 				return
-			case pCh <- p:
+			case pCh <- &procPing{pCtx, p, done}:
 			}
-		}, wWg.Wait
+		}
 	}
 
 	for w := 0; w < workers; w++ {
-		pktWg.Add(1)
 		go func() {
-			runWorker(ctx, pCh, m, h, wWg.Done)
-			pktWg.Done()
+			runWorker(ctx, pCh, m, h)
 		}()
 	}
 
-	return func(p *procPing) {
-		wWg.Add(1)
+	return func(pCtx context.Context, p *pending.Ping, done func()) {
 		select {
 		case <-ctx.Done():
-			wWg.Done()
 			return
-		case pCh <- p:
+		case pCh <- &procPing{pCtx, p, done}:
 		}
-	}, wWg.Wait
+	}
 }
 
-func runWorker(ctx context.Context, pCh <-chan *procPing, m *pending.Map, h func(*ping.Ping, error), done func()) {
+func runWorker(ctx context.Context, pCh <-chan *procPing, m *pending.Map, h func(*ping.Ping, error)) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case p := <-pCh:
 			p.p.Wait(p.ctx, m, h)
-			done()
+			p.done()
 		}
 	}
 }
