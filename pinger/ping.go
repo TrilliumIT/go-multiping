@@ -66,7 +66,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, host stri
 					continue
 				}
 				run(pendingPkt.Done, lCancel)
-				return p.Err
+				return checkErrCtx(ctx, p.Err)
 			}
 
 			if changed {
@@ -88,7 +88,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, host stri
 					id = 0 // try a different id
 					continue
 				}
-				return err
+				return checkErrCtx(ctx, err)
 			}
 		}
 
@@ -107,7 +107,7 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, host stri
 				continue
 			}
 			run(pendingPkt.Done, lCancel)
-			return p.Err
+			return checkErrCtx(ctx, p.Err)
 		}
 
 		if conf.Timeout > 0 {
@@ -126,6 +126,16 @@ func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, host stri
 	pendingPkt.Wait()
 	run(lCancel)
 	return nil
+}
+
+// this returns nil if context is done, to avoid return spurious errors
+func checkErrCtx(ctx context.Context, err error) error {
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+	}
+	return err
 }
 
 func run(f ...func()) {
