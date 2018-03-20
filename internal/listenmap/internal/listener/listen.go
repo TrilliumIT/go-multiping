@@ -16,12 +16,14 @@ import (
 // Listener is a listener for one protocol, ipv4 or ipv6
 type Listener struct {
 	proto int
-	l     sync.RWMutex
 	conn  *icmp.PacketConn
 	Props *messages.Props
 	addL  chan *runParams
 	delL  chan struct{}
-	getL  chan chan<- int
+	// try to lock for sending
+	// if returned f is not nil, call f to unlock
+	// if f is nil then i is zero and listener is not running
+	lockL chan chan<- func()
 }
 
 // New returns a new listener
@@ -30,7 +32,7 @@ func New(p int) *Listener {
 		proto: p,
 		addL:  make(chan *runParams),
 		delL:  make(chan struct{}),
-		getL:  make(chan chan<- int),
+		lockL: make(chan chan<- func()),
 	}
 	switch p {
 	case 4:
@@ -41,11 +43,18 @@ func New(p int) *Listener {
 	go func() {
 		var err error
 		var i int
+		pause := make(chan struct{})
+		unpause := func() { pause <- struct{}{} }
 		wait, cancel := func() {}, func() {}
 		for {
 			select {
-			case r := <-l.getL:
-				r <- i
+			case r := <-l.lockL:
+				if i == 0 {
+					r <- nil
+					continue
+				}
+				r <- unpause
+				<-pause
 			case r := <-l.addL:
 				i += 1
 				if i == 1 {
@@ -73,23 +82,22 @@ func New(p int) *Listener {
 // ErrNotRunning is returned if send is requested and listener is not running
 var ErrNotRunning = errors.New("listener not running")
 
-func (l *Listener) getNumL() int {
-	r := make(chan int)
-	l.getL <- r
-	return <-r
-}
-
 // Send sends a packet using this connectiong
 func (l *Listener) Send(p *ping.Ping, dst net.Addr) error {
-	if l.getNumL() <= 0 {
+	c := make(chan func())
+	l.lockL <- c
+	unlock := <-c
+	if unlock == nil {
 		return ErrNotRunning
 	}
 	p.Sent = time.Now()
 	b, err := p.ToICMPMsg()
 	if err != nil {
+		unlock()
 		return err
 	}
 	p.Len, err = l.conn.WriteTo(b, dst)
+	unlock()
 	return err
 }
 
@@ -111,7 +119,6 @@ type runParams struct {
 func (l *Listener) run(getCb func(net.IP, uint16) func(context.Context, *ping.Ping), workers int, buffer int) (cancel func(), wait func(), err error) {
 	l.conn, err = icmp.ListenPacket(l.Props.Network, l.Props.Src)
 	if err != nil {
-		l.l.Unlock()
 		return func() {}, func() {}, err
 	}
 	err = setPacketCon(l.conn)
