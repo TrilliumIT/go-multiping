@@ -6,11 +6,8 @@ go:
   - "1.10"
 
 before_script:
-  - ip addr
-  - sudo iptables -L
   - echo 0 | sudo tee /proc/sys/net/ipv6/conf/all/disable_ipv6
   - ip addr
-  - sudo iptables -L
   - sudo ping6 -c 1 ::1
   - sudo ping -c 1 127.0.0.1
   - sudo ping -c 1 127.0.0.2
@@ -22,4 +19,4 @@ before_install:
   - go get github.com/mattn/goveralls
 
 script:
-  - $GOPATH/bin/goveralls -service=travis-ci -race -flags="-exec" -flags="sudo" -flags="-timeout" -flags="5m" -show -v -package ./...
+  - $GOPATH/bin/goveralls -service="travis-ci" -race -flags="-exec=sudo" -flags="-timeout=5m" -package="./..."
