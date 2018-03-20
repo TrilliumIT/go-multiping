@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"os/signal"
+	"runtime/pprof"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +16,20 @@ import (
 	"github.com/TrilliumIT/go-multiping/internal/listenmap"
 	"github.com/TrilliumIT/go-multiping/ping"
 )
+
+func TestMain(m *testing.M) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		go func() {
+			time.Sleep(5 * time.Second)
+			err := pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+			panic(err)
+		}()
+	}()
+	os.Exit(m.Run())
+}
 
 func TestDupListener(t *testing.T) {
 	assert := assert.New(t)

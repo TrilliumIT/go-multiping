@@ -20,7 +20,7 @@ func getProcFunc(ctx context.Context, workers, buffer int, m *pending.Map, h fun
 	if workers < -1 {
 		return func(p *procPing) {
 			p.p.Wait(p.ctx, m, h)
-		}, wWg.Wait
+		}, func() {}
 	}
 
 	if workers == 0 {
@@ -30,7 +30,7 @@ func getProcFunc(ctx context.Context, workers, buffer int, m *pending.Map, h fun
 				p.p.Wait(p.ctx, m, h)
 				pktWg.Done()
 			}()
-		}, wWg.Wait
+		}, func() {}
 	}
 
 	pCh := make(chan *procPing, buffer)
@@ -38,41 +38,54 @@ func getProcFunc(ctx context.Context, workers, buffer int, m *pending.Map, h fun
 		return func(p *procPing) {
 			wWg.Add(1)
 			select {
+			case <-ctx.Done():
+				wWg.Done()
+				return
 			case pCh <- p:
 				return
 			default:
 			}
 			pktWg.Add(1)
 			go func() {
-				runWorker(ctx, pCh, m, h, &wWg)
+				runWorker(ctx, pCh, m, h, wWg.Done)
 				pktWg.Done()
 			}()
-			pCh <- p
+			select {
+			case <-ctx.Done():
+				wWg.Done()
+				return
+			case pCh <- p:
+			}
 		}, wWg.Wait
 	}
 
 	for w := 0; w < workers; w++ {
 		pktWg.Add(1)
 		go func() {
-			runWorker(ctx, pCh, m, h, &wWg)
+			runWorker(ctx, pCh, m, h, wWg.Done)
 			pktWg.Done()
 		}()
 	}
 
 	return func(p *procPing) {
 		wWg.Add(1)
-		pCh <- p
+		select {
+		case <-ctx.Done():
+			wWg.Done()
+			return
+		case pCh <- p:
+		}
 	}, wWg.Wait
 }
 
-func runWorker(ctx context.Context, pCh <-chan *procPing, m *pending.Map, h func(*ping.Ping, error), wg *sync.WaitGroup) {
+func runWorker(ctx context.Context, pCh <-chan *procPing, m *pending.Map, h func(*ping.Ping, error), done func()) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case p := <-pCh:
 			p.p.Wait(p.ctx, m, h)
-			wg.Done()
+			done()
 		}
 	}
 }
