@@ -28,10 +28,11 @@ type conn interface {
 	close() error
 }
 
-func New(proto int) *Conn {
+func New(proto int, h func(*ping.Ping, error)) *Conn {
 	return &Conn{
-		cancel: func() {},
-		conn:   newConn(proto),
+		cancel:  func() {},
+		conn:    newConn(proto),
+		handler: h,
 	}
 }
 

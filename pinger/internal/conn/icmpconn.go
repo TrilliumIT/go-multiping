@@ -41,8 +41,10 @@ func toPing(
 	received time.Time,
 ) *ping.Ping {
 	p := &ping.Ping{
-		Src:      &net.IPAddr{IP: src},
-		Dst:      &net.IPAddr{IP: dst},
+		// Src and Dst are flipped, cause this is a ping that was sent to dst
+		// which has now come back
+		Src:      &net.IPAddr{IP: dst},
+		Dst:      &net.IPAddr{IP: src},
 		Len:      rlen,
 		TTL:      ttl,
 		Recieved: received,

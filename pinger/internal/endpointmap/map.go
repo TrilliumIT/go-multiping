@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/TrilliumIT/go-multiping/ping"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/seqmap"
 )
 
@@ -37,14 +38,14 @@ var ErrAlreadyExists = errors.New("already exists")
 var ErrDoesNotExist = errors.New("does not exist")
 
 // returns the length of the map after modification
-func (m *Map) Add(ip net.IP, id int) (sm *seqmap.Map, l int, err error) {
+func (m *Map) Add(ip net.IP, id int, h func(*ping.Ping, error)) (sm *seqmap.Map, l int, err error) {
 	var ok bool
 	m.l.Lock()
 	sm, ok = m.m.get(ip, id)
 	if ok {
 		err = ErrAlreadyExists
 	} else {
-		sm = seqmap.New()
+		sm = seqmap.New(h)
 		m.m.add(ip, id, sm)
 	}
 	l = m.m.length()

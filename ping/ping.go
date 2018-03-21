@@ -51,54 +51,54 @@ type Ping struct {
 	Len int
 }
 
-// UpdateFrom is for udpdating a sent ping with attributes from a recieved ping
-func (p *Ping) UpdateFrom(p2 *Ping) {
+// UpdateFrom is for updating a sent ping with attributes from a recieved ping
+func (p *Ping) UpdateFrom(rp *Ping) {
 	if p.Host == "" {
-		p.Host = p2.Host
+		p.Host = rp.Host
 	}
 
-	if p.Src == nil && p2.Src != nil {
-		p.Src = p2.Src
+	if p.Src == nil && rp.Src != nil {
+		p.Src = rp.Src
 	}
 
-	if p.Src.IP.IsUnspecified() && !p2.Src.IP.IsUnspecified() {
-		p.Src = p2.Src
+	if p.Src.IP.IsUnspecified() && !rp.Src.IP.IsUnspecified() {
+		p.Src = rp.Src
 	}
 
-	if p.Dst == nil && p2.Dst != nil {
-		p.Dst = p2.Dst
+	if p.Dst == nil && rp.Dst != nil {
+		p.Dst = rp.Dst
 	}
 
-	if p.Dst.IP.IsUnspecified() && !p2.Dst.IP.IsUnspecified() {
-		p.Dst = p2.Dst
+	if p.Dst.IP.IsUnspecified() && !rp.Dst.IP.IsUnspecified() {
+		p.Dst = rp.Dst
 	}
 
 	if p.ID == 0 {
-		p.ID = p2.ID
+		p.ID = rp.ID
 	}
 
 	if p.Seq == 0 {
-		p.Seq = p2.Seq
+		p.Seq = rp.Seq
 	}
 
 	if p.Sent.IsZero() {
-		p.Sent = p2.Sent
+		p.Sent = rp.Sent
 	}
 
 	if p.Recieved.IsZero() {
-		p.Recieved = p2.Recieved
+		p.Recieved = rp.Recieved
 	}
 
 	if p.TimeOut == 0 {
-		p.TimeOut = p2.TimeOut
+		p.TimeOut = rp.TimeOut
 	}
 
 	if p.Len == 0 {
-		p.Len = p2.Len
+		p.Len = rp.Len
 	}
 
 	if p.TTL == 0 {
-		p.TTL = p2.TTL
+		p.TTL = rp.TTL
 	}
 }
 

@@ -50,7 +50,7 @@ func readV4(c *ipv4.PacketConn, len int) (
 	if cm == nil {
 		return
 	}
-	src, dst, ttl = cm.Dst, cm.Src, cm.TTL
+	src, dst, ttl = cm.Src, cm.Dst, cm.TTL
 	return
 }
 

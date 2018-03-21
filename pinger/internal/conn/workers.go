@@ -27,16 +27,10 @@ func ctxDone(ctx context.Context) bool {
 
 func (c *Conn) singleWorker(ctx context.Context) {
 	for {
-		// TODO
-		//r, err := c.readPacket()
+		p, err := c.conn.read()
 		if ctxDone(ctx) {
 			return
 		}
-		/*
-			if err != nil {
-				continue
-			}
-			processMessage(ctx, r, getCb)
-		*/
+		c.handler(p, err)
 	}
 }

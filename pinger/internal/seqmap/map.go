@@ -8,12 +8,16 @@ import (
 )
 
 type Map struct {
-	l sync.RWMutex
-	m map[uint16]*ping.Ping
+	l      sync.RWMutex
+	m      map[uint16]*ping.Ping
+	Handle func(*ping.Ping, error)
 }
 
-func New() *Map {
-	return &Map{m: make(map[uint16]*ping.Ping)}
+func New(h func(*ping.Ping, error)) *Map {
+	return &Map{
+		m:      make(map[uint16]*ping.Ping),
+		Handle: h,
+	}
 }
 
 var ErrSeqWrapped = errors.New("sequence wrapped")
@@ -36,8 +40,8 @@ func (s *Map) Add(p ping.Ping) (int, error) {
 	return l, err
 }
 
-func (s *Map) Pop(id int) (*ping.Ping, int, error) {
-	idx := uint16(id)
+func (s *Map) Pop(seq int) (*ping.Ping, int, error) {
+	idx := uint16(seq)
 	var l int
 	var err error
 	s.l.Lock()
