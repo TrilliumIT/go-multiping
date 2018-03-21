@@ -1,6 +1,7 @@
 package socket
 
 import (
+	"context"
 	"net"
 	"sync"
 	"time"
@@ -29,14 +30,24 @@ func (c *Conn) run(workers, buffer int) {
 		return
 	}
 
-	// TODO run
-	// TODO set cancel
+	var ctx context.Context
+	ctx, c.cancel = context.WithCancel(context.Background())
+	c.runWorkers(ctx, workers, buffer)
+	c.running = true
 	c.l.Unlock()
 }
 
 func (c *Conn) Stop() {
+	c.l.Lock()
 	c.cancel()
+	// TODO is throwing packets still necessary?
+	err := c.conn.Close()
+	if err != nil {
+		panic(err)
+	}
 	c.wg.Wait()
+	c.running = false
+	c.l.Unlock()
 }
 
 func (c *Conn) Send(p *ping.Ping, workers, buffer int) error {
@@ -44,7 +55,7 @@ func (c *Conn) Send(p *ping.Ping, workers, buffer int) error {
 	if !c.running {
 		c.l.RUnlock()
 		c.run(workers, buffer)
-		return c.Send(p)
+		return c.Send(p, workers, buffer)
 	}
 
 	p.Sent = time.Now()
