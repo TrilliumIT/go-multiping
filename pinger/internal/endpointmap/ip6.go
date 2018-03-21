@@ -1,4 +1,4 @@
-package socket
+package endpointmap
 
 import (
 	"encoding/binary"
@@ -14,21 +14,21 @@ func toIP6Idx(ip net.IP, id int) [18]byte {
 	return r
 }
 
-type ip6IdMap map[[18]byte]*seqmap.SeqMap
+type ip6m map[[18]byte]*seqmap.Map
 
-func (i ip6IdMap) add(ip net.IP, id int, sm *seqmap.SeqMap) {
+func (i ip6m) add(ip net.IP, id int, sm *seqmap.Map) {
 	i[toIP6Idx(ip, id)] = sm
 }
 
-func (i ip6IdMap) del(ip net.IP, id int) {
+func (i ip6m) del(ip net.IP, id int) {
 	delete(i, toIP6Idx(ip, id))
 }
 
-func (i ip6IdMap) get(ip net.IP, id int) (*seqmap.SeqMap, bool) {
+func (i ip6m) get(ip net.IP, id int) (*seqmap.Map, bool) {
 	sm, ok := i[toIP6Idx(ip, id)]
 	return sm, ok
 }
 
-func (i ip6IdMap) length() int {
+func (i ip6m) length() int {
 	return len(i)
 }

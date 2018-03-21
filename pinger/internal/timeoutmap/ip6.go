@@ -1,4 +1,4 @@
-package tomap
+package timeoutmap
 
 import (
 	"encoding/binary"
@@ -22,17 +22,17 @@ func fromIP6Idx(b [20]byte) (ip net.IP, id, seq int) {
 		int(binary.LittleEndian.Uint16(b[18:]))
 }
 
-type ip6ToM map[[20]byte]time.Time
+type ip6m map[[20]byte]time.Time
 
-func (i ip6ToM) add(ip net.IP, id, seq int, t time.Time) {
+func (i ip6m) add(ip net.IP, id, seq int, t time.Time) {
 	i[toIP6Idx(ip, id, seq)] = t
 }
 
-func (i ip6ToM) del(ip net.IP, id, seq int) {
+func (i ip6m) del(ip net.IP, id, seq int) {
 	delete(i, toIP6Idx(ip, id, seq))
 }
 
-func (i ip6ToM) getNext() (ip net.IP, id int, seq int, t time.Time) {
+func (i ip6m) getNext() (ip net.IP, id int, seq int, t time.Time) {
 	for k, v := range i {
 		if v.Before(t) || t.IsZero() {
 			t = v

@@ -1,4 +1,4 @@
-package tomap
+package timeoutmap
 
 import (
 	"encoding/binary"
@@ -20,17 +20,17 @@ func fromIP4Idx(b [8]byte) (ip net.IP, id, seq int) {
 		int(binary.LittleEndian.Uint16(b[6:]))
 }
 
-type ip4ToM map[[8]byte]time.Time
+type ip4m map[[8]byte]time.Time
 
-func (i ip4ToM) add(ip net.IP, id, seq int, t time.Time) {
+func (i ip4m) add(ip net.IP, id, seq int, t time.Time) {
 	i[toIP4Idx(ip, id, seq)] = t
 }
 
-func (i ip4ToM) del(ip net.IP, id, seq int) {
+func (i ip4m) del(ip net.IP, id, seq int) {
 	delete(i, toIP4Idx(ip, id, seq))
 }
 
-func (i ip4ToM) getNext() (ip net.IP, id int, seq int, t time.Time) {
+func (i ip4m) getNext() (ip net.IP, id int, seq int, t time.Time) {
 	for k, v := range i {
 		if v.Before(t) || t.IsZero() {
 			t = v
