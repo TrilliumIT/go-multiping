@@ -28,12 +28,12 @@ type Ping struct {
 	Host string
 	// Src is the source IP. This is probably 0.0.0.0 for sent packets, but a
 	// specific IP on the sending host for recieved packets
-	Src net.IP
+	Src *net.IPAddr
 	// Dst is the destination IP.
 	// This will be nil for recieved packets on windows. The reason is that
 	// the recieve function does not provide the source address
 	// on windows ICMP messages are mathed only by the 16 bit ICMP id.
-	Dst net.IP
+	Dst *net.IPAddr
 	// ID is the ICMP ID
 	ID int
 	// Seq is the ICMP Sequence
@@ -61,7 +61,7 @@ func (p *Ping) UpdateFrom(p2 *Ping) {
 		p.Src = p2.Src
 	}
 
-	if p.Src.IsUnspecified() && !p2.Src.IsUnspecified() {
+	if p.Src.IP.IsUnspecified() && !p2.Src.IP.IsUnspecified() {
 		p.Src = p2.Src
 	}
 
@@ -69,7 +69,7 @@ func (p *Ping) UpdateFrom(p2 *Ping) {
 		p.Dst = p2.Dst
 	}
 
-	if p.Dst.IsUnspecified() && !p2.Dst.IsUnspecified() {
+	if p.Dst.IP.IsUnspecified() && !p2.Dst.IP.IsUnspecified() {
 		p.Dst = p2.Dst
 	}
 
@@ -110,8 +110,13 @@ func (p *Ping) RTT() time.Duration {
 	return 0
 }
 
+// TimeOutTime returns the time this ping times out
+func (p *Ping) TimeOutTime() time.Time {
+	return p.Sent.Add(p.TimeOut)
+}
+
 func (p *Ping) sendType() icmp.Type {
-	if p.Dst.To4() != nil {
+	if p.Dst.IP.To4() != nil {
 		return ipv4.ICMPTypeEcho
 	}
 	return ipv6.ICMPTypeEchoRequest
