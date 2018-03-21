@@ -1,8 +1,6 @@
 package socket
 
 import (
-	"net"
-
 	"github.com/TrilliumIT/go-multiping/ping"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/conn"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/endpointmap"
@@ -56,7 +54,4 @@ func (s *Socket) v4handle(rp *ping.Ping, err error) {
 
 func (s *Socket) v6handle(rp *ping.Ping, err error) {
 	handle(s.v6em, s.v6tm, rp, err)
-}
-
-func (s *Socket) Add(ip net.IP) {
 }
