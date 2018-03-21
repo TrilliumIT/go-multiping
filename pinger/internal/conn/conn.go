@@ -12,10 +12,13 @@ import (
 type Conn struct {
 	l       sync.RWMutex
 	running bool
-	wg      sync.WaitGroup
 	cancel  func()
 	conn    conn
 	handler func(*ping.Ping, error)
+	// I had a waitgroup for workers, but it has been removed
+	// There's no reason to delay a stop waiting for these to shutdown
+	// If a new listen comes in, a new listener will be created
+	// Just cancel the context and let them die on their own.
 }
 
 type conn interface {
@@ -53,18 +56,18 @@ func (c *Conn) run(workers, buffer int) error {
 	return nil
 }
 
-func (c *Conn) Stop() {
+func (c *Conn) Stop() error {
 	c.l.Lock()
 	c.cancel()
 	// TODO is throwing packets still necessary?
 	err := c.conn.close()
 	if err != nil {
-		// if this errs, these goroutines are stuck, nothing to be done, just die
-		panic(err)
+		c.l.Unlock()
+		return err
 	}
-	c.wg.Wait()
 	c.running = false
 	c.l.Unlock()
+	return nil
 }
 
 func (c *Conn) Send(p *ping.Ping, workers, buffer int) error {

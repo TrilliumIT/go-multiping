@@ -9,11 +9,8 @@ func (c *Conn) runWorkers(
 	workers, buffer int,
 ) {
 	if workers < -1 {
-		c.wg.Add(1)
-		go func() {
-			c.singleWorker(ctx)
-			c.wg.Done()
-		}()
+		go c.singleWorker(ctx)
+		return
 	}
 
 	panic("not implemented")
