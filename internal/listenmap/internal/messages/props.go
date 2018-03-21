@@ -15,6 +15,7 @@ type Props struct {
 	Network     string
 	Src         string
 	SrcIP       net.IP
+	SrcAddr     *net.IPAddr
 	SendType    icmp.Type
 	RecvType    icmp.Type
 	ExpectedLen int
@@ -53,5 +54,7 @@ func getLen(typ icmp.Type) int {
 
 func init() {
 	V4Props.ExpectedLen = getLen(V4Props.RecvType) + v4AddLen
+	V4Props.SrcAddr, _ = net.ResolveIPAddr("ip", V4Props.Src)
 	V6Props.ExpectedLen = getLen(V4Props.RecvType) + v6AddLen
+	V6Props.SrcAddr, _ = net.ResolveIPAddr("ip", V6Props.Src)
 }

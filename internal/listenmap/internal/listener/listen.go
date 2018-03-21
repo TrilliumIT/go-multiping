@@ -88,14 +88,37 @@ func (l *Listener) Send(p *ping.Ping, dst net.Addr) error {
 	if unlock == nil {
 		return ErrNotRunning
 	}
+	err := l.send(p, dst)
+	unlock()
+	return err
+}
+
+// ToICMPMsg returns a byte array ready to send on the wire
+func (l *Listener) sendAngryPacket() {
+	b, err := (&icmp.Message{
+		Code: 0,
+		Type: l.Props.RecvType,
+		Body: &icmp.Echo{
+			ID:  0,
+			Seq: 0,
+		},
+	}).Marshal(nil)
+	if err != nil {
+		panic(err)
+	}
+	_, err = l.conn.WriteTo(b, l.Props.SrcAddr)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (l *Listener) send(p *ping.Ping, dst net.Addr) error {
 	p.Sent = time.Now()
 	b, err := p.ToICMPMsg()
 	if err != nil {
-		unlock()
 		return err
 	}
 	p.Len, err = l.conn.WriteTo(b, dst)
-	unlock()
 	return err
 }
 
@@ -135,8 +158,7 @@ func (l *Listener) run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 	pWg := sync.WaitGroup{}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	rWg := sync.WaitGroup{}
-	rWg.Add(1)
+	rWg := make(chan struct{})
 	go func() {
 		for {
 			r := &messages.RecvMsg{
@@ -148,7 +170,7 @@ func (l *Listener) run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 			}
 			select {
 			case <-ctx.Done():
-				rWg.Done()
+				close(rWg)
 				return
 			default:
 			}
@@ -160,10 +182,20 @@ func (l *Listener) run(getCb func(net.IP, uint16) func(context.Context, *ping.Pi
 
 	cancelAndWait = func() {
 		cancel() // stop conection listener
-		// this is not unblocking readPacket, why?
-		for err := l.conn.Close(); err != nil; err = l.conn.Close() {
+		// Despite https://golang.org/pkg/net/#PacketConn claims
+		// close does not actually cause reads to be unblocked.
+		// This leads to nasty deadlocks.
+		// Throw angry packets at the connection until it dies!
+	angryPackets:
+		for {
+			select {
+			case <-rWg: // The listern has returned
+				break angryPackets
+			default:
+				l.sendAngryPacket()
+			}
 		}
-		rWg.Wait() // wait for connection listener to stop
+		_ = l.conn.Close()
 		pWg.Wait() // wait for packets to be distributed
 		wCancel()  // stop workers
 		wWait()    // wait for workers to stop

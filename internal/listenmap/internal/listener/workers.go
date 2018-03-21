@@ -56,8 +56,6 @@ func getProcFunc(ctx context.Context, workers, buffer int) (procFunc, func()) {
 			select {
 			case wCh <- &procMsg{ctx, r, getCb, done}:
 				return
-			case <-ctx.Done():
-				return
 			default:
 			}
 			wWg.Add(1)
@@ -65,12 +63,7 @@ func getProcFunc(ctx context.Context, workers, buffer int) (procFunc, func()) {
 				runWorker(ctx, wCh)
 				wWg.Done()
 			}()
-			select {
-			case wCh <- &procMsg{ctx, r, getCb, done}:
-				return
-			case <-ctx.Done():
-				return
-			}
+			wCh <- &procMsg{ctx, r, getCb, done}
 		}, wWg.Wait
 	}
 
@@ -88,12 +81,7 @@ func getProcFunc(ctx context.Context, workers, buffer int) (procFunc, func()) {
 		getCb func(net.IP, uint16) func(context.Context, *ping.Ping),
 		done func(),
 	) {
-		select {
-		case wCh <- &procMsg{ctx, r, getCb, done}:
-			return
-		case <-ctx.Done():
-			return
-		}
+		wCh <- &procMsg{ctx, r, getCb, done}
 	}, wWg.Wait
 }
 
