@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"net"
 
-	"github.com/TrilliumIT/go-multiping/pinger/internal/seqmap"
+	"github.com/TrilliumIT/go-multiping/internal/seqmap"
 )
 
 func toIP6Idx(ip net.IP, id int) [18]byte {

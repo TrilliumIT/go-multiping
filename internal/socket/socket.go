@@ -4,11 +4,11 @@ import (
 	"net"
 	"sync"
 
-	"github.com/TrilliumIT/go-multiping/ping"
-	"github.com/TrilliumIT/go-multiping/pinger/internal/conn"
-	"github.com/TrilliumIT/go-multiping/pinger/internal/endpointmap"
-	"github.com/TrilliumIT/go-multiping/pinger/internal/seqmap"
-	"github.com/TrilliumIT/go-multiping/pinger/internal/timeoutmap"
+	"github.com/TrilliumIT/go-multiping/internal/ping"
+	"github.com/TrilliumIT/go-multiping/internal/conn"
+	"github.com/TrilliumIT/go-multiping/internal/endpointmap"
+	"github.com/TrilliumIT/go-multiping/internal/seqmap"
+	"github.com/TrilliumIT/go-multiping/internal/timeoutmap"
 )
 
 type Socket struct {

@@ -5,8 +5,8 @@ import (
 	"net"
 	"sync"
 
-	"github.com/TrilliumIT/go-multiping/ping"
-	"github.com/TrilliumIT/go-multiping/pinger/internal/seqmap"
+	"github.com/TrilliumIT/go-multiping/internal/ping"
+	"github.com/TrilliumIT/go-multiping/internal/seqmap"
 )
 
 type Map struct {

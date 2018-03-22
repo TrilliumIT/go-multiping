@@ -4,7 +4,7 @@ import (
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 
-	"github.com/TrilliumIT/go-multiping/ping"
+	"github.com/TrilliumIT/go-multiping/internal/ping"
 )
 
 type v4Conn struct {

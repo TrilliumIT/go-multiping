@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TrilliumIT/go-multiping/ping"
+	"github.com/TrilliumIT/go-multiping/internal/ping"
 )
 
 type Conn struct {
