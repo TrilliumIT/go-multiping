@@ -1,6 +1,9 @@
 package socket
 
 import (
+	"net"
+	"sync"
+
 	"github.com/TrilliumIT/go-multiping/ping"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/conn"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/endpointmap"
@@ -9,6 +12,10 @@ import (
 )
 
 type Socket struct {
+	workers int
+	buffer  int
+	l       sync.RWMutex
+
 	v4conn *conn.Conn
 	v4em   *endpointmap.Map
 	v4tm   *timeoutmap.Map
@@ -18,8 +25,11 @@ type Socket struct {
 	v6tm   *timeoutmap.Map
 }
 
-func New() *Socket {
+func New(workers, buffer int) *Socket {
 	s := &Socket{
+		workers: workers,
+		buffer:  buffer,
+
 		v4em: endpointmap.New(4),
 		v4tm: timeoutmap.New(4),
 
@@ -29,6 +39,15 @@ func New() *Socket {
 	s.v4conn = conn.New(4, s.v4handle)
 	s.v6conn = conn.New(4, s.v6handle)
 	return s
+}
+
+func (s *Socket) getStuff(ip net.IP) (
+	*conn.Conn, *endpointmap.Map, *timeoutmap.Map,
+) {
+	if ip.To4() == nil && ip.To16() != nil {
+		return s.v6conn, s.v6em, s.v6tm
+	}
+	return s.v4conn, s.v4em, s.v4tm
 }
 
 func handle(

@@ -23,9 +23,8 @@ func New(h func(*ping.Ping, error)) *Map {
 var ErrSeqWrapped = errors.New("sequence wrapped")
 var ErrDoesNotExist = errors.New("does not exist")
 
-// takes a value to ensure that the caller can't modify what is in our map
 // the error indicates sequences wrapped, new ping is added and replaces old ping
-func (s *Map) Add(p ping.Ping) (int, error) {
+func (s *Map) Add(p *ping.Ping) (int, error) {
 	idx := uint16(p.ID)
 	var l int
 	var err error
@@ -34,7 +33,7 @@ func (s *Map) Add(p ping.Ping) (int, error) {
 	if ok {
 		err = ErrSeqWrapped
 	}
-	s.m[idx] = &p
+	s.m[idx] = p
 	l = len(s.m)
 	s.l.Unlock()
 	return l, err

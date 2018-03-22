@@ -2,6 +2,7 @@ package conn
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -36,7 +37,7 @@ func New(proto int, h func(*ping.Ping, error)) *Conn {
 	}
 }
 
-func (c *Conn) run(workers, buffer int) error {
+func (c *Conn) Run(workers, buffer int) error {
 	c.l.Lock()
 	if c.running {
 		c.l.Unlock()
@@ -71,15 +72,13 @@ func (c *Conn) Stop() error {
 	return nil
 }
 
-func (c *Conn) Send(p *ping.Ping, workers, buffer int) error {
+var ErrNotRunning = errors.New("not running")
+
+func (c *Conn) Send(p *ping.Ping) error {
 	c.l.RLock()
 	if !c.running {
 		c.l.RUnlock()
-		err := c.run(workers, buffer)
-		if err != nil {
-			return err
-		}
-		return c.Send(p, workers, buffer)
+		return ErrNotRunning
 	}
 
 	p.Sent = time.Now()
@@ -89,6 +88,5 @@ func (c *Conn) Send(p *ping.Ping, workers, buffer int) error {
 	}
 	p.Len, err = c.conn.writeTo(b, p.Dst)
 	c.l.RUnlock()
-
 	return err
 }
