@@ -21,7 +21,8 @@ type Conn struct {
 	id      int
 	timeout time.Duration
 	s       *Socket
-	count   int64
+	// Count should only be accessed via atomic
+	count int64
 }
 
 func (s *Socket) NewConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*Conn, error) {
@@ -40,7 +41,7 @@ func (s *Socket) NewConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeou
 
 func (c *Conn) Close() error {
 	s := c.s
-	c.s = nil // make anybody who tries to use conn after close panic
+	c.s = nil // make anybody who tries to send after close panic
 	return s.s.Del(c.dst, c.id)
 }
 
@@ -53,6 +54,17 @@ func (c *Conn) SendPing() (int, error) {
 	return count, s.s.SendPing(c.dst, c.id, seq, c.timeout)
 }
 
+// Count returns the last sent count
 func (c *Conn) Count() int {
 	return int(atomic.LoadInt64(&c.count))
+}
+
+// Seq returns the last sent ICMP sequence number
+func (c *Conn) Seq() int {
+	return int(uint16(c.Count()))
+}
+
+// ID returns the ICMP ID associated with this connection
+func (c *Conn) ID() int {
+	return c.id
 }
