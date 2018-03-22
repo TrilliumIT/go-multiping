@@ -25,8 +25,11 @@ type Conn struct {
 	count int64
 }
 
-func (s *Socket) NewConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*Conn, error) {
-	id, err := s.Add(dst, handle)
+func (s *Socket) NewConn(dst *net.IPAddr, handle func(*Ping, error), timeout time.Duration) (*Conn, error) {
+	iHandle := func(p *ping.Ping, err error) {
+		handle(iPingToPing(p), err)
+	}
+	id, err := s.Add(dst, iHandle)
 	if err != nil {
 		return nil, err
 	}
@@ -48,10 +51,15 @@ func (c *Conn) Close() error {
 // SendPing sends a ping, it returns the count
 // Count is incremented whether or not the underlying send errors
 // The sequence of the sent packet can be derived by casing count to uint16.
-func (c *Conn) SendPing() (int, error) {
+//
+// The sent ping from this function will not point to the same object that will be returned to the handler
+// on success or timeout
+func (c *Conn) SendPing() (int, *Ping, error) {
 	count := atomic.AddInt64(&c.count, 1)
-	seq := int(uint16(count))
-	return count, s.s.SendPing(c.dst, c.id, seq, c.timeout)
+	p := &ping.Ping{Dst: dst, ID: id, Seq: int(uint16(count)), TimeOut: timeout}
+	err := c.s.s.SendPing(p)
+	rp := iPingToPing(p)
+	return count, rp, err
 }
 
 // Count returns the last sent count

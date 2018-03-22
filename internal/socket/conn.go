@@ -59,16 +59,12 @@ func (s *Socket) del(
 	return err
 }
 
-func (c *Socket) SendPing(
-	dst *net.IPAddr, id int, seq int, timeout time.Duration,
-) error {
-	conn, em, tm := c.s.getStuff(dst.IP)
-	sm, ok := em.Get(dst.IP, id)
+func (c *Socket) SendPing(p *ping.Ping) error {
+	conn, em, tm := c.s.getStuff(p.Dst.IP)
+	sm, ok := em.Get(p.Dst.IP, id)
 	if !ok {
 		return endpointmap.ErrDoesNotExist
 	}
-
-	p := &ping.Ping{Dst: dst, ID: id, Seq: seq, TimeOut: timeout}
 
 	_, err := sm.Add(p)
 	if err != nil {
