@@ -59,6 +59,11 @@ func (s *Socket) del(
 	return err
 }
 
+// SendPing sends the ping, in the process it sets the sent time
+// This object will be held in the sequencemap until the reply is recieved
+// or it times out, at which point it will be handled. The handled object
+// will be the same as the sent ping but with the additional information from
+// having been recieved.
 func (c *Socket) SendPing(p *ping.Ping) error {
 	conn, em, tm := c.s.getStuff(p.Dst.IP)
 	sm, ok := em.Get(p.Dst.IP, id)
