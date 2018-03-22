@@ -6,37 +6,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/TrilliumIT/go-multiping/internal/ping"
 	"github.com/TrilliumIT/go-multiping/internal/conn"
 	"github.com/TrilliumIT/go-multiping/internal/endpointmap"
+	"github.com/TrilliumIT/go-multiping/internal/ping"
 	"github.com/TrilliumIT/go-multiping/internal/timeoutmap"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
-type Conn struct {
-	dst     *net.IPAddr
-	id      int
-	timeout time.Duration
-	s       *Socket
-	count   int64
-}
-
-func (s *Socket) NewConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*Conn, error) {
+func (s *Socket) Add(dst *net.IPAddr, handle func(*ping.Ping, error)) (int, error) {
 	conn, em, tm := s.getStuff(dst.IP)
-	id, err := s.add(conn, em, tm, dst, handle)
-	if err != nil {
-		return nil, err
-	}
-	c := &Conn{
-		dst:     dst,
-		id:      id,
-		timeout: timeout,
-		s:       s,
-	}
-	return c, nil
+	return s.add(conn, em, tm, dst, handle)
 }
 
 func (s *Socket) add(
@@ -54,18 +32,16 @@ func (s *Socket) add(
 			continue
 		}
 		if sl == 1 {
-			err = conn.Run(s.workers, s.buffer)
+			err = conn.Run(s.Workers)
 		}
 		break
 	}
 	return id, err
 }
 
-func (c *Conn) Close() error {
-	s := c.s
+func (s *Socket) Del(dst *net.IPAddr, id int) error {
 	conn, em, tm := s.getStuff(c.dst.IP)
-	c.s = nil // make anybody who tries to use conn after close panic
-	return s.del(conn, em, tm, c.dst, c.id)
+	return s.del(conn, em, tm, dst, id)
 }
 
 func (s *Socket) del(
@@ -83,15 +59,16 @@ func (s *Socket) del(
 	return err
 }
 
-func (c *Conn) SendPing() error {
-	conn, em, tm := c.s.getStuff(c.dst.IP)
-	sm, ok := em.Get(c.dst.IP, c.id)
+func (c *Socket) SendPing(
+	dst *net.IPAddr, id int, seq int, timeout time.Duration,
+) error {
+	conn, em, tm := c.s.getStuff(dst.IP)
+	sm, ok := em.Get(dst.IP, id)
 	if !ok {
 		return endpointmap.ErrDoesNotExist
 	}
 
-	count := atomic.AddInt64(&c.count, 1)
-	p := &ping.Ping{Dst: c.dst, ID: c.id, Seq: int(uint16(count)), TimeOut: c.timeout}
+	p := &ping.Ping{Dst: dst, ID: id, Seq: seq, TimeOut: timeout}
 
 	_, err := sm.Add(p)
 	if err != nil {

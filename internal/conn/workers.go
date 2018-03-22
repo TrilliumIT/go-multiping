@@ -4,10 +4,7 @@ import (
 	"context"
 )
 
-func (c *Conn) runWorkers(
-	ctx context.Context,
-	workers, buffer int,
-) {
+func (c *Conn) runWorkers(ctx context.Context, workers int) {
 	if workers < -1 {
 		go c.singleWorker(ctx)
 		return

@@ -37,7 +37,7 @@ func New(proto int, h func(*ping.Ping, error)) *Conn {
 	}
 }
 
-func (c *Conn) Run(workers, buffer int) error {
+func (c *Conn) Run(workers int) error {
 	c.l.Lock()
 	if c.running {
 		c.l.Unlock()
@@ -52,7 +52,7 @@ func (c *Conn) Run(workers, buffer int) error {
 	}
 	var ctx context.Context
 	ctx, c.cancel = context.WithCancel(context.Background())
-	c.runWorkers(ctx, workers, buffer)
+	c.runWorkers(ctx, workers)
 	c.running = true
 	c.l.Unlock()
 	return nil

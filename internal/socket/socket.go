@@ -4,16 +4,15 @@ import (
 	"net"
 	"sync"
 
-	"github.com/TrilliumIT/go-multiping/internal/ping"
 	"github.com/TrilliumIT/go-multiping/internal/conn"
 	"github.com/TrilliumIT/go-multiping/internal/endpointmap"
+	"github.com/TrilliumIT/go-multiping/internal/ping"
 	"github.com/TrilliumIT/go-multiping/internal/seqmap"
 	"github.com/TrilliumIT/go-multiping/internal/timeoutmap"
 )
 
 type Socket struct {
-	workers int
-	buffer  int
+	Workers int
 	l       sync.RWMutex
 
 	v4conn *conn.Conn
@@ -25,11 +24,8 @@ type Socket struct {
 	v6tm   *timeoutmap.Map
 }
 
-func New(workers, buffer int) *Socket {
+func New() *Socket {
 	s := &Socket{
-		workers: workers,
-		buffer:  buffer,
-
 		v4em: endpointmap.New(4),
 		v4tm: timeoutmap.New(4),
 

@@ -6,7 +6,6 @@ import (
 	"net"
 	"sync"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenmap"
 	"github.com/TrilliumIT/go-multiping/ping"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/pending"
 	"github.com/TrilliumIT/go-multiping/pinger/internal/ticker"

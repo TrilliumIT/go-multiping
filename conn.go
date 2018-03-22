@@ -1,61 +1,58 @@
 package pinger
 
 import (
-	"sync"
+	"math/rand"
+	"net"
+	"sync/atomic"
+	"time"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenmap"
+	"github.com/TrilliumIT/go-multiping/internal/conn"
+	"github.com/TrilliumIT/go-multiping/internal/endpointmap"
+	"github.com/TrilliumIT/go-multiping/internal/ping"
+	"github.com/TrilliumIT/go-multiping/internal/timeoutmap"
 )
 
-// Conn is a raw socket connection (one for ipv4 and one for ipv6). Connections are only actively listening when there are active pings going on
-// Conn must be created via NewConn
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 type Conn struct {
-	lm *listenmap.ListenMap
+	dst     *net.IPAddr
+	id      int
+	timeout time.Duration
+	s       *Socket
+	count   int64
 }
 
-// NewConn returns a new Conn
-func NewConn() *Conn {
+func (s *Socket) NewConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*Conn, error) {
+	id, err := s.Add(dst, handle)
+	if err != nil {
+		return nil, err
+	}
 	c := &Conn{
-		lm: listenmap.NewListenMap(),
+		dst:     dst,
+		id:      id,
+		timeout: timeout,
+		s:       s,
 	}
-	c.lm.SetWorkers(-1)
-	return c
+	return c, nil
 }
 
-// SetWorkers sets a number of workers to process incoming packets and distribute them to the appropriate handlers
-// <-1 disables workers entirely and synchronously distributes the incoming packet before listening for a new one. This is the default.
-// -1 enables automatic worker allocation. Any time packet processing would block, a new worker is started. Workers remain active until all active pings stop.
-// 0 disalbes workers, causing each incoming packet to start a new goroutine to handle it. This can cause incoming packets to be missed.
-// A postive number pre-allocates a set number of workers
-func (c *Conn) SetWorkers(n int) {
-	c.lm.SetWorkers(n)
+func (c *Conn) Close() error {
+	s := c.s
+	c.s = nil // make anybody who tries to use conn after close panic
+	return s.s.Del(c.dst, c.id)
 }
 
-// SetBuffer sets the buffer size for incoming packets being sent to workers
-// At zero there is no buffer, and if the workers are not ready to process
-// no new packets will be recieved until it is.
-// This change will not take effect until all running pings on Conn are stopped
-func (c *Conn) SetBuffer(n int) {
-	c.lm.SetBuffer(n)
+// SendPing sends a ping, it returns the count
+// Count is incremented whether or not the underlying send errors
+// The sequence of the sent packet can be derived by casing count to uint16.
+func (c *Conn) SendPing() (int, error) {
+	count := atomic.AddInt64(&c.count, 1)
+	seq := int(uint16(count))
+	return count, s.s.SendPing(c.dst, c.id, seq, c.timeout)
 }
 
-var conn *Conn
-var connLock sync.RWMutex
-
-// DefaultConn is the default global conn used by the pinger package
-func DefaultConn() *Conn {
-	connLock.RLock()
-	if conn != nil {
-		connLock.RUnlock()
-		return conn
-	}
-
-	connLock.RUnlock()
-	connLock.Lock()
-	if conn != nil {
-		connLock.Unlock()
-		return conn
-	}
-	conn = NewConn()
-	connLock.Unlock()
-	return conn
+func (c *Conn) Count() int {
+	return int(atomic.LoadInt64(&c.count))
 }
