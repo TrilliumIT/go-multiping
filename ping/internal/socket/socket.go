@@ -50,7 +50,7 @@ func handle(
 	em *endpointmap.Map, tm *timeoutmap.Map,
 	rp *ping.Ping, err error,
 ) {
-	sm, ok := em.Get(rp.Dst.IP, rp.ID)
+	sm, ok := em.Get(rp.Dst.IP, uint16(rp.ID))
 	if !ok {
 		return
 	}

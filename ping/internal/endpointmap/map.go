@@ -28,9 +28,9 @@ func New(proto int) *Map {
 }
 
 type iMap interface {
-	add(net.IP, int, *seqmap.Map)
-	del(net.IP, int)
-	get(net.IP, int) (*seqmap.Map, bool)
+	add(net.IP, uint16, *seqmap.Map)
+	del(net.IP, uint16)
+	get(net.IP, uint16) (*seqmap.Map, bool)
 	length() int
 }
 
@@ -38,7 +38,7 @@ var ErrAlreadyExists = errors.New("already exists")
 var ErrDoesNotExist = errors.New("does not exist")
 
 // returns the length of the map after modification
-func (m *Map) Add(ip net.IP, id int, h func(*ping.Ping, error)) (sm *seqmap.Map, l int, err error) {
+func (m *Map) Add(ip net.IP, id uint16, h func(*ping.Ping, error)) (sm *seqmap.Map, l int, err error) {
 	var ok bool
 	m.l.Lock()
 	sm, ok = m.m.get(ip, id)
@@ -53,7 +53,7 @@ func (m *Map) Add(ip net.IP, id int, h func(*ping.Ping, error)) (sm *seqmap.Map,
 	return sm, l, err
 }
 
-func (m *Map) Pop(ip net.IP, id int) (sm *seqmap.Map, l int, err error) {
+func (m *Map) Pop(ip net.IP, id uint16) (sm *seqmap.Map, l int, err error) {
 	var ok bool
 	m.l.Lock()
 	sm, ok = m.m.get(ip, id)
@@ -66,7 +66,7 @@ func (m *Map) Pop(ip net.IP, id int) (sm *seqmap.Map, l int, err error) {
 	return sm, l, err
 }
 
-func (m *Map) Get(ip net.IP, id int) (sm *seqmap.Map, ok bool) {
+func (m *Map) Get(ip net.IP, id uint16) (sm *seqmap.Map, ok bool) {
 	m.l.RLock()
 	sm, ok = m.m.get(ip, id)
 	m.l.RUnlock()

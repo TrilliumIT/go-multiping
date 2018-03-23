@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
+	"github.com/TrilliumIT/go-multiping/ping/internal/socket"
 )
 
 func init() {
@@ -21,6 +22,11 @@ type Conn struct {
 }
 
 type HandleFunc func(*Ping, error)
+
+// ErrNoIDs is returned when there are no icmp ids left to use
+// Either you are trying to ping the same host with more than 2^16 connections
+// or you are on windows and are running more than 2^16 connections total
+var ErrNoIDS = socket.ErrNoIDs
 
 func (s *Socket) NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*Conn, error) {
 	c := &Conn{

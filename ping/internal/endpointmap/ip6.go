@@ -7,24 +7,24 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/seqmap"
 )
 
-func toIP6Idx(ip net.IP, id int) [18]byte {
+func toIP6Idx(ip net.IP, id uint16) [18]byte {
 	var r [18]byte
 	copy(r[0:16], ip.To16())
-	binary.LittleEndian.PutUint16(r[16:], uint16(id))
+	binary.LittleEndian.PutUint16(r[16:], id)
 	return r
 }
 
 type ip6m map[[18]byte]*seqmap.Map
 
-func (i ip6m) add(ip net.IP, id int, sm *seqmap.Map) {
+func (i ip6m) add(ip net.IP, id uint16, sm *seqmap.Map) {
 	i[toIP6Idx(ip, id)] = sm
 }
 
-func (i ip6m) del(ip net.IP, id int) {
+func (i ip6m) del(ip net.IP, id uint16) {
 	delete(i, toIP6Idx(ip, id))
 }
 
-func (i ip6m) get(ip net.IP, id int) (*seqmap.Map, bool) {
+func (i ip6m) get(ip net.IP, id uint16) (*seqmap.Map, bool) {
 	sm, ok := i[toIP6Idx(ip, id)]
 	return sm, ok
 }

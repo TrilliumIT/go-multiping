@@ -1,6 +1,7 @@
 package socket
 
 import (
+	"errors"
 	"math/rand"
 	"net"
 
@@ -15,26 +16,29 @@ func (s *Socket) Add(dst *net.IPAddr, handle func(*ping.Ping, error)) (int, erro
 	return s.add(conn, em, tm, dst, handle)
 }
 
+var ErrNoIDs = errors.New("no avaliable icmp IDs")
+
 func (s *Socket) add(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map,
 	dst *net.IPAddr, handle func(*ping.Ping, error),
 ) (int, error) {
-	var id, sl int
+	var id int
+	var sl int
 	var err error
 	s.l.Lock()
 	defer s.l.Unlock()
-	for {
-		id = rand.Intn(1<<16-2) + 1
-		_, sl, err = em.Add(dst.IP, id, handle)
+	startId := rand.Intn(1<<16 - 1)
+	for id = startId; id < startId+1<<16-1; id++ {
+		_, sl, err = em.Add(dst.IP, uint16(id), handle)
 		if err == endpointmap.ErrAlreadyExists {
 			continue
 		}
 		if sl == 1 {
 			err = conn.Run(s.Workers)
 		}
-		break
+		return int(uint16(id)), err
 	}
-	return id, err
+	return 0, ErrNoIDs
 }
 
 func (s *Socket) Del(dst *net.IPAddr, id int) error {
@@ -47,7 +51,7 @@ func (s *Socket) del(
 	dst *net.IPAddr, id int) error {
 	s.l.Lock()
 	defer s.l.Unlock()
-	_, sl, err := em.Pop(dst.IP, id)
+	_, sl, err := em.Pop(dst.IP, uint16(id))
 	if err != nil {
 		return err
 	}
@@ -64,7 +68,7 @@ func (s *Socket) del(
 // having been recieved.
 func (s *Socket) SendPing(p *ping.Ping) (int, error) {
 	conn, em, tm := s.getStuff(p.Dst.IP)
-	sm, ok := em.Get(p.Dst.IP, p.ID)
+	sm, ok := em.Get(p.Dst.IP, uint16(p.ID))
 	if !ok {
 		return 0, endpointmap.ErrDoesNotExist
 	}
