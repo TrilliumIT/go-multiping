@@ -1,17 +1,12 @@
 package ping
 
 import (
-	"math/rand"
 	"net"
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 	"github.com/TrilliumIT/go-multiping/ping/internal/socket"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 type Conn struct {
 	dst     *net.IPAddr

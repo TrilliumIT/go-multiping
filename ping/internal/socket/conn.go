@@ -4,12 +4,17 @@ import (
 	"errors"
 	"math/rand"
 	"net"
+	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping/internal/conn"
 	"github.com/TrilliumIT/go-multiping/ping/internal/endpointmap"
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 	"github.com/TrilliumIT/go-multiping/ping/internal/timeoutmap"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func (s *Socket) Add(dst *net.IPAddr, handle func(*ping.Ping, error)) (int, error) {
 	conn, em, tm := s.getStuff(dst.IP)
