@@ -16,7 +16,7 @@ const (
 	TimeSliceLength = 8
 )
 
-// see https://godoc.org/golang.org/x/net/internal/iana#pkg-constants
+// see https://godoc.org/golang.org/x/net/ping/internal/iana#pkg-constants
 const (
 	ProtocolICMP     = 1
 	ProtocolIPv6ICMP = 58 // ICMP for IPv6

@@ -1,4 +1,4 @@
-package pinger
+package ping
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenmap"
+	"github.com/TrilliumIT/go-multiping/ping/internal/listenmap"
 )
 
 func TestDupListener(t *testing.T) {

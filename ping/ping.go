@@ -1,4 +1,4 @@
-package pinger
+package ping
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"github.com/TrilliumIT/go-multiping/ping"
-	"github.com/TrilliumIT/go-multiping/pinger/internal/pending"
-	"github.com/TrilliumIT/go-multiping/pinger/internal/ticker"
+	"github.com/TrilliumIT/go-multiping/pinger/ping/internal/pending"
+	"github.com/TrilliumIT/go-multiping/pinger/ping/internal/ticker"
 )
 
 func (c *Conn) pingWithTicker(ctx context.Context, tick ticker.Ticker, host string, hf HandleFunc, conf *PingConf) error {

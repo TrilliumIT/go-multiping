@@ -1,4 +1,4 @@
-package pinger
+package ping
 
 import (
 	"context"

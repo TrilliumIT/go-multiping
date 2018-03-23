@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/TrilliumIT/go-multiping/internal/ping"
+	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )
 
 type Map struct {

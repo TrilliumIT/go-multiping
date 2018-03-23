@@ -1,4 +1,4 @@
-package pinger
+package ping
 
 import (
 	"encoding/binary"
@@ -10,7 +10,7 @@ import (
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 
-	"github.com/TrilliumIT/go-multiping/pinger/internal/ping"
+	"github.com/TrilliumIT/go-multiping/pinger/ping/internal/ping"
 )
 
 // Ping is an ICMP packet that has been received

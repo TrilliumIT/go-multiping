@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/net/icmp"
 
-	"github.com/TrilliumIT/go-multiping/internal/ping"
+	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )
 
 func newConn(proto int) conn {

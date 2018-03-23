@@ -1,9 +1,9 @@
-package pinger
+package ping
 
 import (
 	"sync"
 
-	"github.com/TrilliumIT/go-multiping/internal/socket"
+	"github.com/TrilliumIT/go-multiping/ping/internal/socket"
 )
 
 // Socket is a raw socket connection (one for ipv4 and one for ipv6). Sockets are only actively listening when there are one or more open connections

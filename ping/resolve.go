@@ -1,10 +1,10 @@
-package pinger
+package ping
 
 import (
 	"context"
 	"net"
 
-	"github.com/TrilliumIT/go-multiping/internal/listenmap"
+	"github.com/TrilliumIT/go-multiping/ping/internal/listenmap"
 	"github.com/TrilliumIT/go-multiping/ping"
 )
 

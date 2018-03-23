@@ -1,11 +1,11 @@
-package pinger
+package ping
 
 import (
 	"context"
 	"sync"
 
 	"github.com/TrilliumIT/go-multiping/ping"
-	"github.com/TrilliumIT/go-multiping/pinger/internal/pending"
+	"github.com/TrilliumIT/go-multiping/pinger/ping/internal/pending"
 )
 
 type procPing struct {
