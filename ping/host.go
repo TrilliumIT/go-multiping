@@ -9,7 +9,7 @@ import (
 )
 
 // HostConn is an ICMP connection based on hostname
-// which can be configured to re-resolve a host
+// Pings run from a HostConn can be configured to periodically re-resolve
 type HostConn struct {
 	s       *Socket
 	host    string
@@ -18,7 +18,12 @@ type HostConn struct {
 	timeout time.Duration
 }
 
-//TODO host field in ping
+// NewHostConn returns a new HostConn
+func NewHostConn(host string, handle HandleFunc, timeout time.Duration) *HostConn {
+	return DefaultSocket().NewHostConn(host, handle, timeout)
+}
+
+// NewHostConn returns a new HostConn
 func (s *Socket) NewHostConn(host string, handle HandleFunc, timeout time.Duration) *HostConn {
 	return &HostConn{
 		s:       s,
@@ -26,6 +31,27 @@ func (s *Socket) NewHostConn(host string, handle HandleFunc, timeout time.Durati
 		handle:  handle,
 		timeout: timeout,
 	}
+}
+
+// OnceHost pings a host once
+func OnceHost(host string, timeout time.Duration) (*Ping, error) {
+	return DefaultSocket().OnceHost(host, timeout)
+}
+
+// OnceHost sends a single echo request and returns, it blocks until a reply is recieved or the ping times out
+//
+// Zero is no timeout and Once will block forever if a reply is never recieved
+//
+// It is not recommended to use Once in a loop, use Interval instead
+func (s *Socket) OnceHost(host string, timeout time.Duration) (*Ping, error) {
+	rCh := make(chan *ret)
+	handle := func(p *Ping, err error) {
+		rCh <- &ret{p, err}
+	}
+
+	s.HostInterval(context.Background(), host, handle, 1, 1, 0, timeout)
+	r := <-rCh
+	return r.p, r.err
 }
 
 // Returns true if the destination has changed or is unresolvable
@@ -85,11 +111,34 @@ func (h *HostConn) hostSend(reResolveEvery int, handler func(*ping.Ping, error))
 	return send, cClose
 }
 
+// HostInterval pings a host re-resolving the hostname every reResolveEvery pings
+func HostInterval(ctx context.Context, host string, handle HandleFunc, count, reResolveEvery int, interval, timeout time.Duration) error {
+	return DefaultSocket().HostInterval(ctx, host, handle, count, reResolveEvery, interval, timeout)
+}
+
+// HostInterval pings a host re-resolving the hostname every reResolveEvery pings
+func (s *Socket) HostInterval(ctx context.Context, host string, handle HandleFunc, count, reResolveEvery int, interval, timeout time.Duration) error {
+	h := s.NewHostConn(host, handle, timeout)
+	return h.Interval(ctx, count, reResolveEvery, interval)
+}
+
+// Interval pings a host re-resolving the hostname every reResolveEvery pings
 func (h *HostConn) Interval(ctx context.Context, count, reResolveEvery int, interval time.Duration) error {
 	send, closeConn := h.hostSend(reResolveEvery, iHandle(h.handle))
 
 	runInterval(ctx, send, count, interval)
 	return closeConn()
+}
+
+// HostFlood pings a host re-resolving the hostname every reResolveEvery pings
+func HostFlood(ctx context.Context, host string, handle HandleFunc, count, reResolveEvery int, timeout time.Duration) error {
+	return DefaultSocket().HostFlood(ctx, host, handle, count, reResolveEvery, timeout)
+}
+
+// HostFlood pings a host re-resolving the hostname every reResolveEvery pings
+func (s *Socket) HostFlood(ctx context.Context, host string, handle HandleFunc, count, reResolveEvery int, timeout time.Duration) error {
+	h := s.NewHostConn(host, handle, timeout)
+	return h.Flood(ctx, count, reResolveEvery)
 }
 
 // Flood continuously sends pings, sending the next ping as soon as the previous one is replied or times out.
