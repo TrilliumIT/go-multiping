@@ -53,8 +53,13 @@ func (s *Socket) Interval(ctx context.Context, dst *net.IPAddr, handler HandleFu
 	if err != nil {
 		return err
 	}
-	defer c.Close()
 
+	runInterval(ctx, c.SendPing, count, interval)
+	c.Close()
+	return nil
+}
+
+func runInterval(ctx context.Context, send func() int, count int, interval time.Duration) {
 	var tC <-chan time.Time
 	switch interval {
 	case 0:
@@ -67,19 +72,18 @@ func (s *Socket) Interval(ctx context.Context, dst *net.IPAddr, handler HandleFu
 		defer t.Stop()
 	}
 
-	for cCount := c.SendPing(); cCount < count || count == 0; cCount = c.SendPing() {
+	for cCount := send(); cCount < count || count == 0; cCount = send() {
 		select {
 		case <-ctx.Done():
-			return err
+			return
 		default:
 		}
 		select {
 		case <-ctx.Done():
-			return err
+			return
 		case <-tC:
 		}
 	}
-	return nil
 }
 
 func Flood(ctx context.Context, dst *net.IPAddr, handler HandleFunc, count int, timeout time.Duration) error {
@@ -98,19 +102,23 @@ func (s *Socket) Flood(ctx context.Context, dst *net.IPAddr, handler HandleFunc,
 	if err != nil {
 		return err
 	}
-	defer c.Close()
 
-	for cCount := c.SendPing(); cCount < count || count == 0; cCount = c.SendPing() {
+	runFlood(ctx, c.SendPing, fC, count)
+	c.Close()
+	return nil
+}
+
+func runFlood(ctx context.Context, send func() int, fC <-chan struct{}, count int) {
+	for cCount := send(); cCount < count || count == 0; cCount = send() {
 		select {
 		case <-ctx.Done():
-			return err
+			return
 		default:
 		}
 		select {
 		case <-ctx.Done():
-			return err
+			return
 		case <-fC:
 		}
 	}
-	return nil
 }

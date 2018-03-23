@@ -20,6 +20,10 @@ type Conn struct {
 // HandleFunc is a function to handle responses
 type HandleFunc func(*Ping, error)
 
+func iHandle(handle HandleFunc) func(*ping.Ping, error) {
+	return func(p *ping.Ping, err error) { handle(iPingToPing(p), err) }
+}
+
 // ErrNoIDs is returned when there are no icmp ids left to use
 // Either you are trying to ping the same host with more than 2^16 connections
 // or you are on windows and are running more than 2^16 connections total
@@ -36,7 +40,7 @@ func (s *Socket) NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Durati
 		dst:     dst,
 		timeout: timeout,
 		s:       s,
-		handle:  func(p *ping.Ping, err error) { handle(iPingToPing(p), err) },
+		handle:  iHandle(handle),
 	}
 	var err error
 	c.id, err = s.s.Add(dst, c.handle)
@@ -47,6 +51,9 @@ func (s *Socket) NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Durati
 }
 
 func (c *Conn) Close() error {
+	if c.s == nil {
+		return nil
+	}
 	s := c.s
 	c.s = nil // make anybody who tries to send after close panic
 	return s.s.Del(c.dst.IP, c.id)
@@ -56,7 +63,15 @@ func (c *Conn) Close() error {
 // Errors sending will be sent to the handler
 // returns the count of the sent packet
 func (c *Conn) SendPing() int {
-	p := &ping.Ping{Dst: c.dst, ID: c.id, TimeOut: c.timeout}
+	return c.sendPing(&ping.Ping{}, nil)
+}
+
+func (c *Conn) sendPing(p *ping.Ping, err error) int {
+	p.Dst, p.ID, p.TimeOut = c.dst, c.id, c.timeout
+	if err != nil {
+		c.handle(p, err)
+		return 0
+	}
 	count, err := c.s.s.SendPing(p)
 	if err != nil {
 		c.handle(p, err)
