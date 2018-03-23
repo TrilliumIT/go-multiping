@@ -34,6 +34,8 @@ type Ping struct {
 	// the recieve function does not provide the source address
 	// on windows ICMP messages are mathed only by the 16 bit ICMP id.
 	Dst *net.IPAddr
+	// Count is the ICMP count
+	Count int
 	// ID is the ICMP ID
 	ID int
 	// Seq is the ICMP Sequence

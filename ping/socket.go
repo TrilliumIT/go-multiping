@@ -26,24 +26,24 @@ func (s *Socket) SetWorkers(n int) {
 	s.s.Workers = n
 }
 
-var socket *Socket
-var socketLock sync.RWMutex
+var dSocket *Socket
+var dSocketLock sync.RWMutex
 
 // DefaultConn is the default global conn used by the pinger package
 func DefaultSocket() *Socket {
-	socketLock.RLock()
-	if socket != nil {
-		socketLock.RUnlock()
-		return socket
+	dSocketLock.RLock()
+	if dSocket != nil {
+		dSocketLock.RUnlock()
+		return dSocket
 	}
 
-	socketLock.RUnlock()
-	socketLock.Lock()
-	if socket != nil {
-		socketLock.Unlock()
-		return socket
+	dSocketLock.RUnlock()
+	dSocketLock.Lock()
+	if dSocket != nil {
+		dSocketLock.Unlock()
+		return dSocket
 	}
-	socket = NewSocket()
-	socketLock.Unlock()
-	return socket
+	dSocket = NewSocket()
+	dSocketLock.Unlock()
+	return dSocket
 }

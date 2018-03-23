@@ -1,14 +1,8 @@
 package ping
 
 import (
-	"encoding/binary"
-	"fmt"
 	"net"
 	"time"
-
-	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv4"
-	"golang.org/x/net/ipv6"
 
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )

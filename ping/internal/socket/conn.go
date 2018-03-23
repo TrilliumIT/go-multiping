@@ -62,22 +62,19 @@ func (s *Socket) del(
 // or it times out, at which point it will be handled. The handled object
 // will be the same as the sent ping but with the additional information from
 // having been recieved.
-func (s *Socket) SendPing(p *ping.Ping) error {
+func (s *Socket) SendPing(p *ping.Ping) (int, error) {
 	conn, em, tm := s.getStuff(p.Dst.IP)
 	sm, ok := em.Get(p.Dst.IP, p.ID)
 	if !ok {
-		return endpointmap.ErrDoesNotExist
+		return 0, endpointmap.ErrDoesNotExist
 	}
 
-	_, err := sm.Add(p)
-	if err != nil {
-		return err
-	}
-	err = conn.Send(p)
+	_, count := sm.Add(p)
+	err := conn.Send(p)
 	if err != nil {
 		_, _, _ = sm.Pop(p.Seq)
-		return err
+		return count, err
 	}
 	tm.Add(p.Dst.IP, p.ID, p.Seq, p.TimeOutTime())
-	return nil
+	return count, nil
 }

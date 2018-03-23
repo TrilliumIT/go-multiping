@@ -8,35 +8,51 @@ import (
 )
 
 type Map struct {
-	l      sync.RWMutex
-	m      map[uint16]*ping.Ping
-	Handle func(*ping.Ping, error)
+	l            sync.RWMutex
+	m            map[uint16]*ping.Ping
+	Handle       func(*ping.Ping, error)
+	count        int
+	seqOffset    int
+	fullWaiting  bool
+	unfullNotify chan struct{}
 }
 
 func New(h func(*ping.Ping, error)) *Map {
 	return &Map{
-		m:      make(map[uint16]*ping.Ping),
-		Handle: h,
+		m:            make(map[uint16]*ping.Ping),
+		Handle:       h,
+		unfullNotify: make(chan struct{}),
 	}
 }
 
-var ErrSeqWrapped = errors.New("sequence wrapped")
 var ErrDoesNotExist = errors.New("does not exist")
 
-// the error indicates sequences wrapped, new ping is added and replaces old ping
-func (s *Map) Add(p *ping.Ping) (int, error) {
-	idx := uint16(p.ID)
-	var l int
-	var err error
-	s.l.Lock()
-	_, ok := s.m[idx]
-	if ok {
-		err = ErrSeqWrapped
+func (s *Map) Add(p *ping.Ping) (length, count int) {
+	var idx uint16
+	for {
+		s.l.Lock()
+		if len(s.m) == 1<<16 {
+			s.fullWaiting = true
+			s.l.Unlock()
+			<-s.unfullNotify
+			continue
+		}
+		idx = uint16(s.count + s.seqOffset)
+		_, ok := s.m[idx]
+		if ok {
+			s.seqOffset++
+			continue
+		}
+		p.Seq = int(idx)
+		p.Count = s.count
+		s.m[idx] = p
+		count = s.count
+		length = len(s.m)
+		s.count++
+		break
 	}
-	s.m[idx] = p
-	l = len(s.m)
 	s.l.Unlock()
-	return l, err
+	return length, count
 }
 
 func (s *Map) Pop(seq int) (*ping.Ping, int, error) {
@@ -50,6 +66,10 @@ func (s *Map) Pop(seq int) (*ping.Ping, int, error) {
 	}
 	delete(s.m, idx)
 	l = len(s.m)
+	if s.fullWaiting && l < 1<<16 {
+		s.fullWaiting = false
+		s.unfullNotify <- struct{}{}
+	}
 	s.l.Unlock()
 	return p, l, err
 }
