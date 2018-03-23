@@ -55,8 +55,7 @@ func (s *Socket) Interval(ctx context.Context, dst *net.IPAddr, handler HandleFu
 	}
 
 	runInterval(ctx, c.SendPing, count, interval)
-	c.Close()
-	return nil
+	return c.Close()
 }
 
 func runInterval(ctx context.Context, send func() int, count int, interval time.Duration) {
@@ -104,8 +103,7 @@ func (s *Socket) Flood(ctx context.Context, dst *net.IPAddr, handler HandleFunc,
 	}
 
 	runFlood(ctx, c.SendPing, fC, count)
-	c.Close()
-	return nil
+	return c.Close()
 }
 
 func runFlood(ctx context.Context, send func() int, fC <-chan struct{}, count int) {

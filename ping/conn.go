@@ -36,11 +36,15 @@ func NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*Conn, 
 
 // NewConn creates a new connection
 func (s *Socket) NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*Conn, error) {
+	return s.newConn(dst, iHandle(handle), timeout)
+}
+
+func (s *Socket) newConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*Conn, error) {
 	c := &Conn{
 		dst:     dst,
 		timeout: timeout,
 		s:       s,
-		handle:  iHandle(handle),
+		handle:  handle,
 	}
 	var err error
 	c.id, err = s.s.Add(dst, c.handle)
