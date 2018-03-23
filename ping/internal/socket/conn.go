@@ -96,6 +96,8 @@ func (s *Socket) SendPing(p *ping.Ping) (int, error) {
 		_, _, _ = sm.Pop(p.Seq)
 		return count, err
 	}
-	tm.Add(p.Dst.IP, p.ID, p.Seq, p.TimeOutTime())
+	if p.TimeOut > 0 {
+		tm.Add(p.Dst.IP, p.ID, p.Seq, p.TimeOutTime())
+	}
 	return count, nil
 }

@@ -23,6 +23,10 @@ type HandleFunc func(*Ping, error)
 // or you are on windows and are running more than 2^16 connections total
 var ErrNoIDS = socket.ErrNoIDs
 
+func NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*Conn, error) {
+	return DefaultSocket().NewConn(dst, handle, timeout)
+}
+
 func (s *Socket) NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*Conn, error) {
 	c := &Conn{
 		dst:     dst,
@@ -41,7 +45,7 @@ func (s *Socket) NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Durati
 func (c *Conn) Close() error {
 	s := c.s
 	c.s = nil // make anybody who tries to send after close panic
-	return s.s.Del(c.dst, c.id)
+	return s.s.Del(c.dst.IP, c.id)
 }
 
 // SendPing sends a ping, it returns the count
