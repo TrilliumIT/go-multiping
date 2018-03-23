@@ -28,6 +28,8 @@ type Socket struct {
 
 func New() *Socket {
 	s := &Socket{
+		Workers: 1,
+
 		v4em:       endpointmap.New(4),
 		v4tm:       timeoutmap.New(4),
 		v4tmCancel: func() {},

@@ -13,7 +13,7 @@ type v6Conn struct {
 
 func (c *v6Conn) start() error {
 	var err error
-	c.c, err = icmp.ListenPacket("ip", "::")
+	c.c, err = icmp.ListenPacket("ip6:ipv6-icmp", "::")
 	if err != nil {
 		return err
 	}

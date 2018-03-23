@@ -5,12 +5,9 @@ import (
 )
 
 func (c *Conn) runWorkers(ctx context.Context, workers int) {
-	if workers < -1 {
+	for w := 0; w < workers; w++ {
 		go c.singleWorker(ctx)
-		return
 	}
-
-	panic("not implemented")
 }
 
 func ctxDone(ctx context.Context) bool {

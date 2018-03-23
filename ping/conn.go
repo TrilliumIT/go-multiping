@@ -20,7 +20,7 @@ type IPConn struct {
 // ErrNoIDs is returned when there are no icmp ids left to use
 // Either you are trying to ping the same host with more than 2^16 connections
 // or you are on windows and are running more than 2^16 connections total
-var ErrNoIDS = socket.ErrNoIDs
+var ErrNoIDs = socket.ErrNoIDs
 
 // NewIPConn creates a new connection
 func NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPConn, error) {

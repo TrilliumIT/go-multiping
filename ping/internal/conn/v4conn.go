@@ -13,7 +13,7 @@ type v4Conn struct {
 
 func (c *v4Conn) start() error {
 	var err error
-	c.c, err = icmp.ListenPacket("ip", "0.0.0.0")
+	c.c, err = icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
 		return err
 	}
