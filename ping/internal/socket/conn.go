@@ -3,8 +3,6 @@ package socket
 import (
 	"math/rand"
 	"net"
-	"sync/atomic"
-	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping/internal/conn"
 	"github.com/TrilliumIT/go-multiping/ping/internal/endpointmap"
@@ -40,7 +38,7 @@ func (s *Socket) add(
 }
 
 func (s *Socket) Del(dst *net.IPAddr, id int) error {
-	conn, em, tm := s.getStuff(c.dst.IP)
+	conn, em, tm := s.getStuff(dst.IP)
 	return s.del(conn, em, tm, dst, id)
 }
 
@@ -64,9 +62,9 @@ func (s *Socket) del(
 // or it times out, at which point it will be handled. The handled object
 // will be the same as the sent ping but with the additional information from
 // having been recieved.
-func (c *Socket) SendPing(p *ping.Ping) error {
-	conn, em, tm := c.s.getStuff(p.Dst.IP)
-	sm, ok := em.Get(p.Dst.IP, id)
+func (s *Socket) SendPing(p *ping.Ping) error {
+	conn, em, tm := s.getStuff(p.Dst.IP)
+	sm, ok := em.Get(p.Dst.IP, p.ID)
 	if !ok {
 		return endpointmap.ErrDoesNotExist
 	}

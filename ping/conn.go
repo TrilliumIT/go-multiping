@@ -25,6 +25,8 @@ type Conn struct {
 	count int64
 }
 
+type HandleFunc func(context.Context, *ping.Ping, error)
+
 func (s *Socket) NewConn(dst *net.IPAddr, handle func(*Ping, error), timeout time.Duration) (*Conn, error) {
 	iHandle := func(p *ping.Ping, err error) {
 		handle(iPingToPing(p), err)
