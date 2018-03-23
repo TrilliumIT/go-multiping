@@ -8,6 +8,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/socket"
 )
 
+// Conn holds a connection to a destination
 type Conn struct {
 	dst     *net.IPAddr
 	id      int
@@ -16,6 +17,7 @@ type Conn struct {
 	handle  func(*ping.Ping, error)
 }
 
+// HandleFunc is a function to handle responses
 type HandleFunc func(*Ping, error)
 
 // ErrNoIDs is returned when there are no icmp ids left to use
@@ -23,10 +25,12 @@ type HandleFunc func(*Ping, error)
 // or you are on windows and are running more than 2^16 connections total
 var ErrNoIDS = socket.ErrNoIDs
 
+// NewConn creates a new connection
 func NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*Conn, error) {
 	return DefaultSocket().NewConn(dst, handle, timeout)
 }
 
+// NewConn creates a new connection
 func (s *Socket) NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*Conn, error) {
 	c := &Conn{
 		dst:     dst,

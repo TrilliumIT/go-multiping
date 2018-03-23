@@ -8,6 +8,7 @@ import (
 
 // Socket is a raw socket connection (one for ipv4 and one for ipv6). Sockets are only actively listening when there are one or more open connections
 // Sockets must be created via NewSocket
+// In most cases using DefaultSocket() is appropriate
 type Socket struct {
 	s *socket.Socket
 }
@@ -26,10 +27,15 @@ func (s *Socket) SetWorkers(n int) {
 	s.s.Workers = n
 }
 
+// SetWorkers sets the workers on the default socket
+func SetWorkers(n int) {
+	DefaultSocket().SetWorkers(n)
+}
+
 var dSocket *Socket
 var dSocketLock sync.RWMutex
 
-// DefaultConn is the default global conn used by the pinger package
+// DefaultSocket is the default global socket
 func DefaultSocket() *Socket {
 	dSocketLock.RLock()
 	if dSocket != nil {
