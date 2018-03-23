@@ -8,8 +8,8 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/socket"
 )
 
-// Conn holds a connection to a destination
-type Conn struct {
+// IPConn holds a connection to a destination
+type IPConn struct {
 	dst     *net.IPAddr
 	id      int
 	timeout time.Duration
@@ -17,30 +17,23 @@ type Conn struct {
 	handle  func(*ping.Ping, error)
 }
 
-// HandleFunc is a function to handle responses
-type HandleFunc func(*Ping, error)
-
-func iHandle(handle HandleFunc) func(*ping.Ping, error) {
-	return func(p *ping.Ping, err error) { handle(iPingToPing(p), err) }
-}
-
 // ErrNoIDs is returned when there are no icmp ids left to use
 // Either you are trying to ping the same host with more than 2^16 connections
 // or you are on windows and are running more than 2^16 connections total
 var ErrNoIDS = socket.ErrNoIDs
 
-// NewConn creates a new connection
-func NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*Conn, error) {
-	return DefaultSocket().NewConn(dst, handle, timeout)
+// NewIPConn creates a new connection
+func NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPConn, error) {
+	return DefaultSocket().NewIPConn(dst, handle, timeout)
 }
 
-// NewConn creates a new connection
-func (s *Socket) NewConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*Conn, error) {
-	return s.newConn(dst, iHandle(handle), timeout)
+// NewIPConn creates a new connection
+func (s *Socket) NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPConn, error) {
+	return s.newIPConn(dst, iHandle(handle), timeout)
 }
 
-func (s *Socket) newConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*Conn, error) {
-	c := &Conn{
+func (s *Socket) newIPConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*IPConn, error) {
+	c := &IPConn{
 		dst:     dst,
 		timeout: timeout,
 		s:       s,
@@ -54,7 +47,7 @@ func (s *Socket) newConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeou
 	return c, nil
 }
 
-func (c *Conn) Close() error {
+func (c *IPConn) Close() error {
 	if c.s == nil {
 		return nil
 	}
@@ -66,11 +59,11 @@ func (c *Conn) Close() error {
 // SendPing sends a ping, it returns the count
 // Errors sending will be sent to the handler
 // returns the count of the sent packet
-func (c *Conn) SendPing() int {
+func (c *IPConn) SendPing() int {
 	return c.sendPing(&ping.Ping{}, nil)
 }
 
-func (c *Conn) sendPing(p *ping.Ping, err error) int {
+func (c *IPConn) sendPing(p *ping.Ping, err error) int {
 	p.Dst, p.ID, p.TimeOut = c.dst, c.id, c.timeout
 	if err != nil {
 		c.handle(p, err)
@@ -84,6 +77,6 @@ func (c *Conn) sendPing(p *ping.Ping, err error) int {
 }
 
 // ID returns the ICMP ID associated with this connection
-func (c *Conn) ID() int {
+func (c *IPConn) ID() int {
 	return c.id
 }

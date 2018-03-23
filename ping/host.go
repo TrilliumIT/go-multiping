@@ -33,25 +33,25 @@ func (s *Socket) NewHostConn(host string, handle HandleFunc, timeout time.Durati
 	}
 }
 
-// OnceHost pings a host once
-func OnceHost(host string, timeout time.Duration) (*Ping, error) {
-	return DefaultSocket().OnceHost(host, timeout)
+// HostOnce pings a host once
+func HostOnce(host string, timeout time.Duration) (*Ping, error) {
+	return DefaultSocket().HostOnce(host, timeout)
 }
 
-// OnceHost sends a single echo request and returns, it blocks until a reply is recieved or the ping times out
+// HostOnce sends a single echo request and returns, it blocks until a reply is recieved or the ping times out
 //
 // Zero is no timeout and Once will block forever if a reply is never recieved
 //
 // It is not recommended to use Once in a loop, use Interval instead
-func (s *Socket) OnceHost(host string, timeout time.Duration) (*Ping, error) {
-	rCh := make(chan *ret)
-	handle := func(p *Ping, err error) {
-		rCh <- &ret{p, err}
+func (s *Socket) HostOnce(host string, timeout time.Duration) (*Ping, error) {
+	sendGet := func(h HandleFunc) (func() int, func() error, error) {
+		send := func() int {
+			s.HostInterval(context.Background(), host, h, 1, 1, 0, timeout)
+			return 1
+		}
+		return send, func() error { return nil }, nil
 	}
-
-	s.HostInterval(context.Background(), host, handle, 1, 1, 0, timeout)
-	r := <-rCh
-	return r.p, r.err
+	return runOnce(sendGet)
 }
 
 // Returns true if the destination has changed or is unresolvable
@@ -63,7 +63,7 @@ func (h *HostConn) resolve() (changed bool, err error) {
 }
 
 func (h *HostConn) hostSend(reResolveEvery int, handler func(*ping.Ping, error)) (func() int, func() error) {
-	var c *Conn
+	var c *IPConn
 	var cCount int
 
 	cClose := func() error {
@@ -98,7 +98,7 @@ func (h *HostConn) hostSend(reResolveEvery int, handler func(*ping.Ping, error))
 				handler(p, err)
 				return cCount
 			}
-			c, err = h.s.newConn(h.dst, handler, h.timeout)
+			c, err = h.s.newIPConn(h.dst, handler, h.timeout)
 			if err != nil {
 				c = nil
 				handler(p, err)
