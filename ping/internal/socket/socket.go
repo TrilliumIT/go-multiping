@@ -15,35 +15,39 @@ type Socket struct {
 	Workers int
 	l       sync.RWMutex
 
-	v4conn *conn.Conn
-	v4em   *endpointmap.Map
-	v4tm   *timeoutmap.Map
+	v4conn     *conn.Conn
+	v4em       *endpointmap.Map
+	v4tm       *timeoutmap.Map
+	v4tmCancel func()
 
-	v6conn *conn.Conn
-	v6em   *endpointmap.Map
-	v6tm   *timeoutmap.Map
+	v6conn     *conn.Conn
+	v6em       *endpointmap.Map
+	v6tm       *timeoutmap.Map
+	v6tmCancel func()
 }
 
 func New() *Socket {
 	s := &Socket{
-		v4em: endpointmap.New(4),
-		v4tm: timeoutmap.New(4),
+		v4em:       endpointmap.New(4),
+		v4tm:       timeoutmap.New(4),
+		v4tmCancel: func() {},
 
-		v6em: endpointmap.New(6),
-		v6tm: timeoutmap.New(6),
+		v6em:       endpointmap.New(6),
+		v6tm:       timeoutmap.New(6),
+		v6tmCancel: func() {},
 	}
 	s.v4conn = conn.New(4, s.v4handle)
 	s.v6conn = conn.New(4, s.v6handle)
 	return s
 }
 
-func (s *Socket) getStuff(ip net.IP) (
-	*conn.Conn, *endpointmap.Map, *timeoutmap.Map,
+func (s *Socket) getConnMaps(ip net.IP) (
+	*conn.Conn, *endpointmap.Map, *timeoutmap.Map, func(), func(func()),
 ) {
 	if ip.To4() == nil && ip.To16() != nil {
-		return s.v6conn, s.v6em, s.v6tm
+		return s.v6conn, s.v6em, s.v6tm, s.v6tmCancel, func(f func()) { s.v6tmCancel = f }
 	}
-	return s.v4conn, s.v4em, s.v4tm
+	return s.v4conn, s.v4em, s.v4tm, s.v4tmCancel, func(f func()) { s.v4tmCancel = f }
 }
 
 func handle(

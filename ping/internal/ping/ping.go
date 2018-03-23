@@ -55,6 +55,10 @@ type Ping struct {
 
 // UpdateFrom is for updating a sent ping with attributes from a recieved ping
 func (p *Ping) UpdateFrom(rp *Ping) {
+	if rp == nil || p == nil {
+		return
+	}
+
 	if p.Host == "" {
 		p.Host = rp.Host
 	}
@@ -63,16 +67,20 @@ func (p *Ping) UpdateFrom(rp *Ping) {
 		p.Src = rp.Src
 	}
 
-	if p.Src.IP.IsUnspecified() && !rp.Src.IP.IsUnspecified() {
-		p.Src = rp.Src
+	if p.Src != nil && rp.Src != nil {
+		if p.Src.IP.IsUnspecified() && !rp.Src.IP.IsUnspecified() {
+			p.Src = rp.Src
+		}
 	}
 
 	if p.Dst == nil && rp.Dst != nil {
 		p.Dst = rp.Dst
 	}
 
-	if p.Dst.IP.IsUnspecified() && !rp.Dst.IP.IsUnspecified() {
-		p.Dst = rp.Dst
+	if p.Dst != nil && rp.Dst != nil {
+		if p.Dst.IP.IsUnspecified() && !rp.Dst.IP.IsUnspecified() {
+			p.Dst = rp.Dst
+		}
 	}
 
 	if p.ID == 0 {
@@ -83,11 +91,11 @@ func (p *Ping) UpdateFrom(rp *Ping) {
 		p.Seq = rp.Seq
 	}
 
-	if p.Sent.IsZero() {
+	if p.Sent.Before(rp.Sent) {
 		p.Sent = rp.Sent
 	}
 
-	if p.Recieved.IsZero() {
+	if p.Recieved.Before(rp.Recieved) {
 		p.Recieved = rp.Recieved
 	}
 

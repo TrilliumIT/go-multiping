@@ -92,5 +92,6 @@ func (m *Map) Next(ctx context.Context) (ip net.IP, id, seq int, t time.Time) {
 		m.to.del(ip, id, seq)
 		m.l.Unlock()
 		m.setNext()
+		return
 	}
 }
