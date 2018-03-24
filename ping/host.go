@@ -45,11 +45,16 @@ func HostOnce(host string, timeout time.Duration) (*Ping, error) {
 // It is not recommended to use Once in a loop, use Interval instead
 func (s *Socket) HostOnce(host string, timeout time.Duration) (*Ping, error) {
 	sendGet := func(h HandleFunc) (func() int, func() error, error) {
-		send := func() int {
-			s.HostInterval(context.Background(), host, h, 1, 1, 0, timeout)
-			return 1
-		}
-		return send, func() error { return nil }, nil
+		/*
+			send := func() int {
+				s.HostInterval(context.Background(), host, h, 1, 1, 0, timeout)
+				return 1
+			}
+			return send, func() error { return nil }, nil
+		*/
+		host := s.NewHostConn(host, h, timeout)
+		send, cClose := host.hostSend(1, iHandle(host.handle))
+		return send, cClose, nil
 	}
 	return runOnce(sendGet)
 }
