@@ -2,6 +2,7 @@ package ping
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 

@@ -64,9 +64,11 @@ func iPingToPing(p *ping.Ping) *Ping {
 		Len:      p.Len,
 	}
 	if p.Src != nil {
+		rp.Src = &net.IPAddr{}
 		*rp.Src = *p.Src
 	}
 	if p.Dst != nil {
+		rp.Dst = &net.IPAddr{}
 		*rp.Dst = *p.Dst
 	}
 	return rp

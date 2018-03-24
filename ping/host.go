@@ -59,6 +59,9 @@ func (h *HostConn) resolve() (changed bool, err error) {
 	var dst *net.IPAddr
 	dst, err = net.ResolveIPAddr("ip", h.host)
 	changed = dst == nil || h.dst == nil || !dst.IP.Equal(h.dst.IP)
+	if changed {
+		h.dst = dst
+	}
 	return changed, err
 }
 
@@ -92,7 +95,9 @@ func (h *HostConn) hostSend(reResolveEvery int, handler func(*ping.Ping, error))
 			}
 		}
 		if changed || c == nil {
-			err = c.Close()
+			if c != nil {
+				err = c.Close()
+			}
 			if err != nil {
 				c = nil
 				handler(p, err)

@@ -46,7 +46,7 @@ func TestSeqBlock(t *testing.T) {
 		tm := time.NewTimer(time.Millisecond)
 		select {
 		case <-tm.C:
-			assert.Fail("sending blocked")
+			assert.Fail("sending blocked", i)
 		case <-sc:
 		}
 		tm.Stop()
