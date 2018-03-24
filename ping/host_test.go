@@ -1,6 +1,7 @@
 package ping
 
 import (
+	"net"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ func TestHostOnceSuccess(t *testing.T) {
 	assert := assert.New(t)
 	host := "google.com"
 	timeout := time.Second
+
 	p, err := HostOnce(host, timeout)
 	assert.NoError(err)
 	assert.NotNil(p)
@@ -33,5 +35,17 @@ func TestHostOnceSuccess(t *testing.T) {
 	assert.True(p.Len > 0)
 }
 
-func TestHostOnceFail(t *testing.T) {
+func testHostOnceFail(t *testing.T) {
+	assert := assert.New(t)
+	host := "foo.test"
+	timeout := 10 * time.Millisecond
+
+	p, err := HostOnce(host, timeout)
+	assert.Error(err)
+	_, ok := err.(*net.DNSError)
+	assert.True(ok)
+	assert.NotNil(p)
+	assert.Equal(host, p.Host)
+	assert.Nil(p.Dst)
+	assert.WithinDuration(time.Now(), p.Sent, timeout)
 }

@@ -4,6 +4,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/TrilliumIT/go-multiping/ping/internal/conn"
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 	"github.com/TrilliumIT/go-multiping/ping/internal/socket"
 )
@@ -55,6 +56,8 @@ func (c *IPConn) Close() error {
 	c.s = nil // make anybody who tries to send after close panic
 	return s.s.Del(c.dst.IP, c.id)
 }
+
+var ErrNotRunning = conn.ErrNotRunning
 
 // SendPing sends a ping, it returns the count
 // Errors sending will be sent to the handler

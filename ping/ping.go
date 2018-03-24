@@ -23,6 +23,8 @@ type Ping struct {
 	ID int
 	// Seq is the ICMP Sequence
 	Seq int
+	// Count is the count of this ICMP
+	Count int
 	// Sent is the time the echo was sent
 	Sent time.Time
 	// Recieved is the time the echo was recieved.

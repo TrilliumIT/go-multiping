@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
@@ -81,12 +82,25 @@ func (c *Conn) Send(p *ping.Ping) error {
 		return ErrNotRunning
 	}
 
-	p.Sent = time.Now()
-	b, err := p.ToICMPMsg()
-	if err != nil {
-		return err
+	var err error
+	var b []byte
+	for {
+		p.Sent = time.Now()
+		b, err = p.ToICMPMsg()
+		if err != nil {
+			return err
+		}
+		p.Len, err = c.conn.writeTo(b, p.Dst)
+		if err != nil {
+			if neterr, ok := err.(*net.OpError); ok {
+				if neterr.Err == syscall.ENOBUFS {
+					continue
+				}
+			}
+		}
+		break
 	}
-	p.Len, err = c.conn.writeTo(b, p.Dst)
+
 	c.l.RUnlock()
 	return err
 }

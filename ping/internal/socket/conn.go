@@ -67,10 +67,11 @@ func (s *Socket) del(
 	dst net.IP, id int) error {
 	s.l.Lock()
 	defer s.l.Unlock()
-	_, sl, err := em.Pop(dst, uint16(id))
+	sm, sl, err := em.Pop(dst, uint16(id))
 	if err != nil {
 		return err
 	}
+	sm.Close()
 	if sl == 0 {
 		err = conn.Stop()
 		cancel()
@@ -90,14 +91,14 @@ func (s *Socket) SendPing(p *ping.Ping) (int, error) {
 		return 0, endpointmap.ErrDoesNotExist
 	}
 
-	_, count := sm.Add(p)
+	_, p.Count = sm.Add(p)
 	err := conn.Send(p)
 	if err != nil {
 		_, _, _ = sm.Pop(p.Seq)
-		return count, err
+		return p.Count, err
 	}
 	if p.TimeOut > 0 {
 		tm.Add(p.Dst.IP, p.ID, p.Seq, p.TimeOutTime())
 	}
-	return count, nil
+	return p.Count, nil
 }

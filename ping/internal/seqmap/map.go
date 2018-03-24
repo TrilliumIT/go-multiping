@@ -21,6 +21,7 @@ func New(h func(*ping.Ping, error)) *Map {
 	return &Map{
 		m:            make(map[uint16]*ping.Ping),
 		Handle:       h,
+		count:        -1,
 		unfullNotify: make(chan struct{}),
 	}
 }
@@ -29,26 +30,29 @@ var ErrDoesNotExist = errors.New("does not exist")
 
 func (s *Map) Add(p *ping.Ping) (length, count int) {
 	var idx uint16
+	s.l.Lock()
+	s.count++
+	count = s.count
 	for {
-		s.l.Lock()
-		if len(s.m) == 1<<16 {
+		if len(s.m) >= 1<<16 {
 			s.fullWaiting = true
 			s.l.Unlock()
-			<-s.unfullNotify
+			_, open := <-s.unfullNotify
+			if !open {
+				return length, count
+			}
+			s.l.Lock()
 			continue
 		}
-		idx = uint16(s.count + s.seqOffset)
+		idx = uint16(count + s.seqOffset)
 		_, ok := s.m[idx]
 		if ok {
 			s.seqOffset++
 			continue
 		}
 		p.Seq = int(idx)
-		p.Count = s.count
 		s.m[idx] = p
-		count = s.count
 		length = len(s.m)
-		s.count++
 		break
 	}
 	s.l.Unlock()
@@ -72,4 +76,11 @@ func (s *Map) Pop(seq int) (*ping.Ping, int, error) {
 	}
 	s.l.Unlock()
 	return p, l, err
+}
+
+func (s *Map) Close() {
+	s.l.Lock()
+	s.fullWaiting = false
+	close(s.unfullNotify)
+	s.l.Unlock()
 }

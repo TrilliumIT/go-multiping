@@ -91,6 +91,10 @@ func (p *Ping) UpdateFrom(rp *Ping) {
 		p.Seq = rp.Seq
 	}
 
+	if p.Count == 0 {
+		p.Count = rp.Seq
+	}
+
 	if p.Sent.Before(rp.Sent) {
 		p.Sent = rp.Sent
 	}
