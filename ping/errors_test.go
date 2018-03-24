@@ -1,7 +1,9 @@
 package ping
 
 import (
+	"fmt"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,13 +42,15 @@ func TestSeqBlock(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(c)
 	sc := make(chan struct{})
+	wg := sync.WaitGroup{}
 	for i := 0; i < 1<<16; i++ {
 		// these shouldn't block
-		go func() { c.SendPing(); sc <- struct{}{} }()
-		tm := time.NewTimer(time.Millisecond)
+		wg.Add(1)
+		go func() { c.SendPing(); sc <- struct{}{}; wg.Done() }()
+		tm := time.NewTimer(500 * time.Millisecond)
 		select {
 		case <-tm.C:
-			assert.Fail("sending blocked", i)
+			assert.Fail(fmt.Sprintf("sending blocked at %v", i))
 		case <-sc:
 		}
 		tm.Stop()
@@ -61,4 +65,14 @@ func TestSeqBlock(t *testing.T) {
 	}
 	tm.Stop()
 	assert.NoError(c.Close())
+
+	wgCh := make(chan struct{})
+	go func() { wg.Wait(); close(wgCh) }()
+	tm = time.NewTimer(500 * time.Millisecond)
+	select {
+	case <-tm.C:
+		assert.Fail("close did not unblock pending sends")
+	case <-wgCh:
+	}
+	tm.Stop()
 }

@@ -32,3 +32,6 @@ func TestHostOnceSuccess(t *testing.T) {
 	assert.True(p.TTL > 0)
 	assert.True(p.Len > 0)
 }
+
+func TestHostOnceFail(t *testing.T) {
+}
