@@ -79,31 +79,49 @@ func (s *Socket) del(
 	return err
 }
 
+func (s *Socket) Drain(dst net.IP, id int) error {
+	conn, em, tm, cancel, _ := s.getConnMaps(dst)
+	return s.del(conn, em, tm, cancel, dst, id)
+}
+func (s *Socket) drain(
+	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
+	dst net.IP, id int) error {
+	s.l.Lock()
+	sm, _, sl := em.Get(dst, uint16(id))
+	if sl == 0 {
+		s.l.Unlock()
+		return s.del(conn, em, tm, cancel, dst, id)
+	}
+	sm.Drain()
+	s.l.Unlock()
+	return nil
+}
+
 // SendPing sends the ping, in the process it sets the sent time
 // This object will be held in the sequencemap until the reply is recieved
 // or it times out, at which point it will be handled. The handled object
 // will be the same as the sent ping but with the additional information from
 // having been recieved.
-func (s *Socket) SendPing(p *ping.Ping) (int, error) {
+func (s *Socket) SendPing(p *ping.Ping) error {
 	conn, em, tm, _, _ := s.getConnMaps(p.Dst.IP)
-	sm, ok := em.Get(p.Dst.IP, uint16(p.ID))
+	sm, ok, _ := em.Get(p.Dst.IP, uint16(p.ID))
 	if !ok {
-		return 0, endpointmap.ErrDoesNotExist
+		return endpointmap.ErrDoesNotExist
 	}
 
 	var sl int
-	sl, p.Count = sm.Add(p)
+	sl = sm.Add(p)
 	if sl == 0 {
 		// Sending was closed
-		return p.Count, nil
+		return nil
 	}
 	err := conn.Send(p)
 	if err != nil {
-		_, _, _ = sm.Pop(p.Seq)
-		return p.Count, err
+		_, _, _, _ = sm.Pop(p.Seq)
+		return err
 	}
 	if p.TimeOut > 0 {
 		tm.Add(p.Dst.IP, p.ID, p.Seq, p.TimeOutTime())
 	}
-	return p.Count, nil
+	return nil
 }

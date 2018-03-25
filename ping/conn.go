@@ -2,6 +2,7 @@ package ping
 
 import (
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping/internal/conn"
@@ -11,10 +12,11 @@ import (
 
 // IPConn holds a connection to a destination
 type IPConn struct {
+	s       *Socket
 	dst     *net.IPAddr
 	id      int
+	count   int64
 	timeout time.Duration
-	s       *Socket
 	handle  func(*ping.Ping, error)
 }
 
@@ -30,15 +32,16 @@ func NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPCo
 
 // NewIPConn creates a new connection
 func (s *Socket) NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPConn, error) {
-	return s.newIPConn(dst, iHandle(handle), timeout)
+	return s.newIPConn(dst, iHandle(handle), timeout, -1)
 }
 
-func (s *Socket) newIPConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*IPConn, error) {
+func (s *Socket) newIPConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration, count int64) (*IPConn, error) {
 	c := &IPConn{
 		dst:     dst,
 		timeout: timeout,
 		s:       s,
 		handle:  handle,
+		count:   count,
 	}
 	var err error
 	c.id, err = s.s.Add(dst, c.handle)
@@ -56,26 +59,35 @@ func (c *IPConn) Close() error {
 	return c.s.s.Del(c.dst.IP, c.id)
 }
 
+func (c *IPConn) drain() {
+	if c.s == nil {
+		return
+	}
+	c.s.s.Drain(c.dst.IP, c.id)
+}
+
 var ErrNotRunning = conn.ErrNotRunning
 
 // SendPing sends a ping, it returns the count
 // Errors sending will be sent to the handler
 // returns the count of the sent packet
 func (c *IPConn) SendPing() int {
-	return c.sendPing(&ping.Ping{}, nil)
+	count := atomic.AddInt64(&c.count, 1)
+	p := &ping.Ping{
+		Count:   int(count),
+		TimeOut: c.timeout,
+		Sent:    time.Now(),
+	}
+	return c.sendPing(p)
 }
 
-func (c *IPConn) sendPing(p *ping.Ping, err error) int {
-	p.Dst, p.ID, p.TimeOut = c.dst, c.id, c.timeout
-	if err != nil {
-		c.handle(p, err)
-		return 0
-	}
-	count, err := c.s.s.SendPing(p)
+func (c *IPConn) sendPing(p *ping.Ping) int {
+	p.Dst, p.ID = c.dst, c.id
+	err := c.s.s.SendPing(p)
 	if err != nil {
 		c.handle(p, err)
 	}
-	return count
+	return p.Count
 }
 
 // ID returns the ICMP ID associated with this connection

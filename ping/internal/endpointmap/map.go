@@ -66,9 +66,10 @@ func (m *Map) Pop(ip net.IP, id uint16) (sm *seqmap.Map, l int, err error) {
 	return sm, l, err
 }
 
-func (m *Map) Get(ip net.IP, id uint16) (sm *seqmap.Map, ok bool) {
+func (m *Map) Get(ip net.IP, id uint16) (sm *seqmap.Map, ok bool, length int) {
 	m.l.RLock()
 	sm, ok = m.m.get(ip, id)
+	length = m.m.length()
 	m.l.RUnlock()
-	return sm, ok
+	return sm, ok, length
 }
