@@ -10,7 +10,7 @@ import (
 
 func TestHostOnceSuccess(t *testing.T) {
 	assert := assert.New(t)
-	host := "google.com"
+	host := "example.com"
 	timeout := time.Second
 
 	p, err := HostOnce(host, timeout)

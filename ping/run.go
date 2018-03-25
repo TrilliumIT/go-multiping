@@ -20,7 +20,7 @@ func runOnce(sendGet func(HandleFunc) (func() int, func() error, error)) (*Ping,
 	if err != nil {
 		return nil, err
 	}
-	send()
+	go send()
 	r := <-rCh
 	cClose()
 	return r.p, r.err
