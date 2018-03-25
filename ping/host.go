@@ -12,32 +12,34 @@ import (
 // HostConn is an ICMP connection based on hostname
 // Pings run from a HostConn can be configured to periodically re-resolve
 type HostConn struct {
-	s        *Socket
-	ipc      *IPConn
-	draining []*IPConn
-	host     string
-	count    int64
-	handle   func(*ping.Ping, error)
-	timeout  time.Duration
+	s              *Socket
+	ipc            *IPConn
+	draining       []*IPConn
+	host           string
+	count          int64
+	reResolveEvery int64
+	handle         func(*ping.Ping, error)
+	timeout        time.Duration
 }
 
 // NewHostConn returns a new HostConn
-func NewHostConn(host string, handle HandleFunc, timeout time.Duration) *HostConn {
-	return DefaultSocket().NewHostConn(host, handle, timeout)
+func NewHostConn(host string, reResolveEvery int, handle HandleFunc, timeout time.Duration) *HostConn {
+	return DefaultSocket().NewHostConn(host, reResolveEvery, handle, timeout)
 }
 
 // NewHostConn returns a new HostConn
-func (s *Socket) NewHostConn(host string, handle HandleFunc, timeout time.Duration) *HostConn {
-	return s.newHostConn(host, iHandle(handle), timeout)
+func (s *Socket) NewHostConn(host string, reResolveEvery int, handle HandleFunc, timeout time.Duration) *HostConn {
+	return s.newHostConn(host, reResolveEvery, iHandle(handle), timeout)
 }
 
-func (s *Socket) newHostConn(host string, handle func(*ping.Ping, error), timeout time.Duration) *HostConn {
+func (s *Socket) newHostConn(host string, reResolveEvery int, handle func(*ping.Ping, error), timeout time.Duration) *HostConn {
 	return &HostConn{
-		s:       s,
-		host:    host,
-		handle:  handle,
-		timeout: timeout,
-		count:   -1,
+		s:              s,
+		host:           host,
+		reResolveEvery: int64(reResolveEvery),
+		handle:         handle,
+		timeout:        timeout,
+		count:          -1,
 	}
 }
 
@@ -50,23 +52,23 @@ func (h *HostConn) SendPing() int {
 		TimeOut: h.timeout,
 		Sent:    time.Now(),
 	}
-	if h.ipc == nil || count%reResolveEvery == 0 {
+	if h.ipc == nil || (h.reResolveEvery != 0 && count%h.reResolveEvery == 0) {
 		var dst *net.IPAddr
 		dst, err := net.ResolveIPAddr("ip", h.host)
 		changed := dst == nil || h.ipc == nil || h.ipc.dst == nil || !dst.IP.Equal(h.ipc.dst.IP)
 		if err != nil {
-			handle(p, err)
-			return count
+			h.handle(p, err)
+			return p.Count
 		}
 		if changed {
 			if h.ipc != nil {
 				h.ipc.drain()
 				h.draining = append(h.draining, h.ipc)
 			}
-			h.ipc, err = newIPConn(dst, h.handle, h.timeout, h.count)
+			h.ipc, err = h.s.newIPConn(dst, h.handle, h.timeout, h.count)
 			if err != nil {
-				handle(p, err)
-				return count
+				h.handle(p, err)
+				return p.Count
 			}
 		}
 	}
@@ -91,15 +93,15 @@ func HostOnce(host string, timeout time.Duration) (*Ping, error) {
 // Zero is no timeout and IPOnce will block forever if a reply is never recieved
 // It is not recommended to use IPOnce in a loop, use Interval, or create a Conn and call SendPing() in a loop
 func (s *Socket) HostOnce(host string, timeout time.Duration) (*Ping, error) {
-	sendGet := func(h HandleFunc) (func() int, func() error, error) {
-		h := s.NewHostConn(host, timeout)
+	sendGet := func(hdl HandleFunc) (func() int, func() error, error) {
+		h := s.NewHostConn(host, 1, hdl, timeout)
 		return h.SendPing, h.Close, nil
 	}
 	return runOnce(sendGet)
 }
 
-func HostInterval(ctx context.Context, host string, handler HandleFunc, count int, interval, timeout time.Duration) error {
-	return DefaultSocket().HostInterval(ctx, host, handler, count, interval, timeout)
+func HostInterval(ctx context.Context, host string, reResolveEvery int, handler HandleFunc, count int, interval, timeout time.Duration) error {
+	return DefaultSocket().HostInterval(ctx, host, reResolveEvery, handler, count, interval, timeout)
 }
 
 // HostInterval sends a ping each interval up to count pings or until ctx is canceled.
@@ -111,27 +113,27 @@ func HostInterval(ctx context.Context, host string, handler HandleFunc, count in
 // If a timeout of zero is specifed, pings will never time out.
 //
 // If a count of zero is specified, interval will continue to send pings until ctx is canceled.
-func (s *Socket) HostInterval(ctx context.Context, host string, handler HandleFunc, count int, interval, timeout time.Duration) error {
-	h := s.NewHostConn(host, handler, timeout)
+func (s *Socket) HostInterval(ctx context.Context, host string, reResolveEvery int, handler HandleFunc, count int, interval, timeout time.Duration) error {
+	h := s.NewHostConn(host, reResolveEvery, handler, timeout)
 
 	runInterval(ctx, h.SendPing, count, interval)
 	return h.Close()
 }
 
-func HostFlood(ctx context.Context, host string, handler HandleFunc, count int, timeout time.Duration) error {
-	return DefaultSocket().HostFlood(ctx, host, handler, count, timeout)
+func HostFlood(ctx context.Context, host string, reResolveEvery int, handler HandleFunc, count int, timeout time.Duration) error {
+	return DefaultSocket().HostFlood(ctx, host, reResolveEvery, handler, count, timeout)
 }
 
 // IPFlood continuously sends pings, sending the next ping as soon as the previous one is replied or times out.
-func (s *Socket) HostFlood(ctx context.Context, host string, handler HandleFunc, count int, timeout time.Duration) error {
+func (s *Socket) HostFlood(ctx context.Context, host string, reResolveEvery int, handler HandleFunc, count int, timeout time.Duration) error {
 	fC := make(chan struct{})
 	floodHander := func(p *Ping, err error) {
 		fC <- struct{}{}
 		handler(p, err)
 	}
 
-	h := s.NewHostConn(host, floodHander, timeout)
+	h := s.NewHostConn(host, reResolveEvery, floodHander, timeout)
 
 	runFlood(ctx, h.SendPing, fC, count)
-	return c.Close()
+	return h.Close()
 }
