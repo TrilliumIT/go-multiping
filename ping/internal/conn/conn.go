@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"sync"
 	"syscall"
 	"time"
@@ -84,6 +85,7 @@ func (c *Conn) Send(p *ping.Ping) error {
 
 	var err error
 	var b []byte
+send:
 	for {
 		p.Sent = time.Now()
 		b, err = p.ToICMPMsg()
@@ -92,9 +94,20 @@ func (c *Conn) Send(p *ping.Ping) error {
 		}
 		p.Len, err = c.conn.writeTo(b, p.Dst)
 		if err != nil {
-			if neterr, ok := err.(*net.OpError); ok {
-				if neterr.Err == syscall.ENOBUFS {
-					continue
+			subErr := err
+			for {
+				switch subErr.(type) {
+				case syscall.Errno:
+					if subErr == syscall.ENOBUFS {
+						continue send
+					}
+					break send
+				case *net.OpError:
+					subErr = subErr.(*net.OpError).Err
+				case *os.SyscallError:
+					subErr = subErr.(*os.SyscallError).Err
+				default:
+					break send
 				}
 			}
 		}
