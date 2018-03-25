@@ -52,9 +52,8 @@ func (c *IPConn) Close() error {
 	if c.s == nil {
 		return nil
 	}
-	s := c.s
-	c.s = nil // make anybody who tries to send after close panic
-	return s.s.Del(c.dst.IP, c.id)
+	defer func() { c.s = nil }() // make anybody who tries to send after close panic
+	return c.s.s.Del(c.dst.IP, c.id)
 }
 
 var ErrNotRunning = conn.ErrNotRunning

@@ -32,28 +32,24 @@ func TestNoIDs(t *testing.T) {
 	}
 }
 
-func assertBlocks(t *testing.T, f func(), to time.Duration, s string, i ...interface{}) {
-	tm := time.NewTimer(to)
-	r := make(chan struct{})
-	go func() { f(); close(r) }()
-	select {
-	case <-tm.C:
-	case <-r:
-		assert.Fail(t, s, i...)
-	}
+func assertBlocks(t *testing.T, f func(), minD, maxD time.Duration, s string, i ...interface{}) {
+	tm := time.AfterFunc(maxD*2, func() {
+		panic("blocked twice timeout limit")
+	})
+	st := time.Now()
+	f()
 	tm.Stop()
+	assert.True(t, time.Now().Sub(st) > minD, "Did not block long enough")
 }
 
-func assertDoesNotBlock(t *testing.T, f func(), to time.Duration, s string, i ...interface{}) {
-	tm := time.NewTimer(to)
-	r := make(chan struct{})
-	go func() { f(); close(r) }()
-	select {
-	case <-tm.C:
-		assert.Fail(t, s, i...)
-	case <-r:
-	}
+func assertDoesNotBlock(t *testing.T, f func(), maxD time.Duration, s string, i ...interface{}) {
+	tm := time.AfterFunc(maxD*2, func() {
+		panic("blocked twice timeout limit")
+	})
+	st := time.Now()
+	f()
 	tm.Stop()
+	assert.WithinDuration(t, st, time.Now(), maxD)
 }
 
 func TestSeqBlock(t *testing.T) {
@@ -62,12 +58,11 @@ func TestSeqBlock(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(ip)
 	h := func(p *Ping, err error) {
-		fmt.Printf("%#v\n", p)
-		fmt.Printf("%#v\n", err)
-		assert.FailNow("bah")
-
-		assert.Equal(ErrNotRunning, err)
-		assert.Equal(1<<16, p.Count)
+		assert.Fail(
+			fmt.Sprintf(`Handle should have not been called.\n
+			Called with packet: %#v\n
+			And error: %#v\n
+			And error(): %v`, p, err, err.Error()))
 	}
 	c, err := NewIPConn(ip, h, 0)
 	assert.NoError(err)
@@ -83,12 +78,14 @@ func TestSeqBlock(t *testing.T) {
 	// this should block
 	wg2 := sync.WaitGroup{}
 	wg2.Add(1)
-	f := func() { fmt.Println("lws"); assert.Equal(1<<16, c.SendPing()); fmt.Println("lwe"); wg2.Done() }
-	assertBlocks(t, f, time.Second, "last ping did not block")
-	fmt.Println("1")
+	f := func() {
+		assert.Equal(1<<16, c.SendPing())
+		wg2.Done()
+	}
+	go assertBlocks(t, f, time.Second, 10*time.Second, "last ping did not block")
+	time.Sleep(2 * time.Second)
 	assert.NoError(c.Close())
 
 	assertDoesNotBlock(t, wg.Wait, 500*time.Millisecond, "first pings did not return")
-	fmt.Println("2")
 	assertDoesNotBlock(t, wg2.Wait, 2000*time.Millisecond, "last ping did not return")
 }

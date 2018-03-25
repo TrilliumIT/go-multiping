@@ -39,7 +39,7 @@ func (s *Map) Add(p *ping.Ping) (length, count int) {
 			s.l.Unlock()
 			_, open := <-s.unfullNotify
 			if !open {
-				return length, count
+				return 0, count
 			}
 			s.l.Lock()
 			continue

@@ -91,7 +91,12 @@ func (s *Socket) SendPing(p *ping.Ping) (int, error) {
 		return 0, endpointmap.ErrDoesNotExist
 	}
 
-	_, p.Count = sm.Add(p)
+	var sl int
+	sl, p.Count = sm.Add(p)
+	if sl == 0 {
+		// Sending was closed
+		return p.Count, nil
+	}
 	err := conn.Send(p)
 	if err != nil {
 		_, _, _ = sm.Pop(p.Seq)
