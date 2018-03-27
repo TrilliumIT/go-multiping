@@ -151,6 +151,7 @@ func main() {
 		}
 	}
 
+	wg.Wait()
 	clock.Lock()
 	fmt.Printf("%v recieved, %v dropped, %v errored\n", recieved, dropped, errored)
 	clock.Unlock()
