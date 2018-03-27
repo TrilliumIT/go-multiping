@@ -25,6 +25,9 @@ type IPConn struct {
 // or you are on windows and are running more than 2^16 connections total
 var ErrNoIDs = socket.ErrNoIDs
 
+// ErrTimedOut is returned when a ping times out
+var ErrTimedOut = socket.ErrTimedOut
+
 // NewIPConn creates a new connection
 func NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPConn, error) {
 	return DefaultSocket().NewIPConn(dst, handle, timeout)

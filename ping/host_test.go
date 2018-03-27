@@ -35,7 +35,7 @@ func TestHostOnceSuccess(t *testing.T) {
 	assert.True(p.Len > 0)
 }
 
-func testHostOnceFail(t *testing.T) {
+func TestHostOnceFail(t *testing.T) {
 	assert := assert.New(t)
 	host := "foo.test"
 	timeout := 10 * time.Millisecond
@@ -47,5 +47,5 @@ func testHostOnceFail(t *testing.T) {
 	assert.NotNil(p)
 	assert.Equal(host, p.Host)
 	assert.Nil(p.Dst)
-	assert.WithinDuration(time.Now(), p.Sent, timeout)
+	assert.WithinDuration(time.Now(), p.Sent, timeout*5)
 }

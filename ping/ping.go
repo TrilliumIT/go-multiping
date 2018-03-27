@@ -59,6 +59,7 @@ func iPingToPing(p *ping.Ping) *Ping {
 		Host:     p.Host,
 		ID:       p.ID,
 		Seq:      p.Seq,
+		Count:    p.Count,
 		Sent:     p.Sent,
 		Recieved: p.Recieved,
 		TimeOut:  p.TimeOut,
