@@ -92,7 +92,7 @@ func (p *Ping) UpdateFrom(rp *Ping) {
 	}
 
 	if p.Count == 0 {
-		p.Count = rp.Seq
+		p.Count = rp.Count
 	}
 
 	if p.Sent.Before(rp.Sent) {

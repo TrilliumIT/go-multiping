@@ -72,22 +72,23 @@ var ErrNotRunning = conn.ErrNotRunning
 // Errors sending will be sent to the handler
 // returns the count of the sent packet
 func (c *IPConn) SendPing() int {
-	count := atomic.AddInt64(&c.count, 1)
+	count := int(atomic.AddInt64(&c.count, 1))
 	p := &ping.Ping{
-		Count:   int(count),
+		Count:   count,
 		TimeOut: c.timeout,
 		Sent:    time.Now(),
 	}
-	return c.sendPing(p)
+	c.sendPing(p)
+	return count
 }
 
-func (c *IPConn) sendPing(p *ping.Ping) int {
+func (c *IPConn) sendPing(p *ping.Ping) {
 	p.Dst, p.ID = c.dst, c.id
 	err := c.s.s.SendPing(p)
 	if err != nil {
 		c.handle(p, err)
 	}
-	return p.Count
+	return
 }
 
 // ID returns the ICMP ID associated with this connection

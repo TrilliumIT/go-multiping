@@ -17,7 +17,7 @@ type HostConn struct {
 	draining       []*IPConn
 	host           string
 	count          int64
-	reResolveEvery int64
+	reResolveEvery int
 	handle         func(*ping.Ping, error)
 	timeout        time.Duration
 }
@@ -36,7 +36,7 @@ func (s *Socket) newHostConn(host string, reResolveEvery int, handle func(*ping.
 	return &HostConn{
 		s:              s,
 		host:           host,
-		reResolveEvery: int64(reResolveEvery),
+		reResolveEvery: reResolveEvery,
 		handle:         handle,
 		timeout:        timeout,
 		count:          -1,
@@ -45,9 +45,9 @@ func (s *Socket) newHostConn(host string, reResolveEvery int, handle func(*ping.
 
 // SendPing sends a ping
 func (h *HostConn) SendPing() int {
-	count := atomic.AddInt64(&h.count, 1)
+	count := int(atomic.AddInt64(&h.count, 1))
 	p := &ping.Ping{
-		Count:   int(count),
+		Count:   count,
 		Host:    h.host,
 		TimeOut: h.timeout,
 		Sent:    time.Now(),
@@ -58,7 +58,7 @@ func (h *HostConn) SendPing() int {
 		changed := dst == nil || h.ipc == nil || h.ipc.dst == nil || !dst.IP.Equal(h.ipc.dst.IP)
 		if err != nil {
 			h.handle(p, err)
-			return p.Count
+			return count
 		}
 		if changed {
 			if h.ipc != nil {
@@ -68,11 +68,12 @@ func (h *HostConn) SendPing() int {
 			h.ipc, err = h.s.newIPConn(dst, h.handle, h.timeout, h.count)
 			if err != nil {
 				h.handle(p, err)
-				return p.Count
+				return count
 			}
 		}
 	}
-	return h.ipc.sendPing(p)
+	h.ipc.sendPing(p)
+	return count
 }
 
 func (h *HostConn) Close() error {
