@@ -14,10 +14,10 @@ import (
 
 type Conn struct {
 	l       sync.RWMutex
-	running bool
 	cancel  func()
 	conn    conn
 	handler func(*ping.Ping, error)
+	proto   int
 	// I had a waitgroup for workers, but it has been removed
 	// There's no reason to delay a stop waiting for these to shutdown
 	// If a new listen comes in, a new listener will be created
@@ -34,18 +34,19 @@ type conn interface {
 func New(proto int, h func(*ping.Ping, error)) *Conn {
 	return &Conn{
 		cancel:  func() {},
-		conn:    newConn(proto),
 		handler: h,
+		proto:   proto,
 	}
 }
 
 func (c *Conn) Run(workers int) error {
 	c.l.Lock()
-	if c.running {
+	if c.conn != nil {
 		c.l.Unlock()
 		return nil
 	}
 
+	c.conn = newConn(c.proto)
 	err := c.conn.start()
 	if err != nil {
 		_ = c.conn.close()
@@ -54,8 +55,7 @@ func (c *Conn) Run(workers int) error {
 	}
 	var ctx context.Context
 	ctx, c.cancel = context.WithCancel(context.Background())
-	c.runWorkers(ctx, workers)
-	c.running = true
+	c.runWorkers(ctx, workers, c.conn.read, c.handler)
 	c.l.Unlock()
 	return nil
 }
@@ -68,7 +68,7 @@ func (c *Conn) Stop() error {
 		c.l.Unlock()
 		return err
 	}
-	c.running = false
+	c.conn = nil
 	c.l.Unlock()
 	return nil
 }
@@ -77,7 +77,7 @@ var ErrNotRunning = errors.New("not running")
 
 func (c *Conn) Send(p *ping.Ping) (time.Time, error) {
 	c.l.RLock()
-	if !c.running {
+	if c.conn == nil {
 		c.l.RUnlock()
 		return time.Time{}, ErrNotRunning
 	}

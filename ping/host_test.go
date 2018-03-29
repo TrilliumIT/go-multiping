@@ -94,7 +94,6 @@ func testInterval(host string, reResolveEvery int, count int, interval, timeout 
 		default:
 			assert.NoError(HostInterval(ctx, host, reResolveEvery, hf, count, interval, timeout))
 		}
-		time.Sleep(time.Millisecond)
 		close(done)
 		cancel()
 		switch count {

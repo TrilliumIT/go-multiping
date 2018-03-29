@@ -6,9 +6,8 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )
 
-func (c *Conn) runWorkers(ctx context.Context, workers int) {
+func (c *Conn) runWorkers(ctx context.Context, workers int, read func() (*ping.Ping, error), handle func(*ping.Ping, error)) {
 	for w := 0; w < workers; w++ {
-		read, handle := c.conn.read, c.handler
 		go c.singleWorker(ctx, read, handle)
 	}
 }
