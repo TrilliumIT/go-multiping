@@ -76,21 +76,23 @@ func (c *Conn) Stop() error {
 
 var ErrNotRunning = errors.New("not running")
 
-func (c *Conn) Send(p *ping.Ping) error {
+func (c *Conn) Send(p *ping.Ping) (time.Time, error) {
 	c.l.RLock()
 	if !c.running {
 		c.l.RUnlock()
-		return ErrNotRunning
+		return time.Time{}, ErrNotRunning
 	}
 
 	var err error
 	var b []byte
+	var toT time.Time
 send:
 	for {
 		p.Sent = time.Now()
+		toT = p.TimeOutTime()
 		b, err = p.ToICMPMsg()
 		if err != nil {
-			return err
+			return toT, err
 		}
 		p.Len = len(b)
 		_, err = c.conn.writeTo(b, p.Dst)
@@ -116,5 +118,5 @@ send:
 	}
 
 	c.l.RUnlock()
-	return err
+	return toT, err
 }

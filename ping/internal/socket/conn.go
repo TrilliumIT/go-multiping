@@ -119,13 +119,19 @@ func (s *Socket) SendPing(p *ping.Ping) error {
 		// Sending was closed
 		return nil
 	}
-	err := conn.Send(p)
+	dst, id, seq, to := p.Dst.IP, p.ID, p.Seq, p.TimeOut
+	if to > 0 {
+		tm.Add(dst, id, seq, time.Now().Add(to).Add(time.Millisecond))
+	}
+	tot, err := conn.Send(p)
 	if err != nil {
 		_, _, _, _ = sm.Pop(p.Seq)
+		tm.Del(p.Dst.IP, p.ID, p.Seq)
 		return err
 	}
-	if p.TimeOut > 0 {
-		tm.Add(p.Dst.IP, p.ID, p.Seq, p.TimeOutTime())
+	if to > 0 {
+		// update timeout with accurate timeout time
+		tm.Add(dst, id, seq, tot)
 	}
 	return nil
 }

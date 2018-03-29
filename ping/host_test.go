@@ -95,6 +95,7 @@ func testInterval(host string, reResolveEvery int, count int, interval, timeout 
 			assert.NoError(HostInterval(ctx, host, reResolveEvery, hf, count, interval, timeout))
 		}
 		close(done)
+		cancel()
 		switch count {
 		case 0:
 			assert.True(atomic.LoadInt64(&received) >= cancelOn)
@@ -131,7 +132,7 @@ func TestHostInterval(t *testing.T) {
 	for _, h := range hosts {
 		h := h
 		t.Run(fmt.Sprintf("host-%v", h), func(t *testing.T) {
-			t.Parallel()
+			//t.Parallel()
 			for _, c := range counts {
 				c := c
 				t.Run(fmt.Sprintf("count-%v", c), func(t *testing.T) {

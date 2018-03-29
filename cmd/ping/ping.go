@@ -46,6 +46,7 @@ func main() {
 	reResolve := flag.Int("r", 1, "")
 	//randDelay := flag.Bool("d", false, "")
 	manual := flag.Bool("m", false, "")
+	flood := flag.Bool("f", false, "")
 	quiet := flag.Bool("q", false, "")
 	flag.Usage = func() {
 		fmt.Print(usage)
@@ -112,7 +113,7 @@ func main() {
 			hc := ping.NewHostConn(host, *reResolve, handle, *timeout)
 			sends = append(sends, hc.SendPing)
 			closes = append(closes, hc.Close)
-		case *interval == 0:
+		case *flood:
 			wg.Add(1)
 			go func(host string) {
 				err := ping.HostFlood(ctx, host, *reResolve, handle, *count, *timeout)
