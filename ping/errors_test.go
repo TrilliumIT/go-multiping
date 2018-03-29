@@ -70,7 +70,7 @@ func TestSeqBlock(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1 << 16)
 	for i := 0; i < 1<<16; i++ {
-		f := func() { assert.Equal(i, c.SendPing()); wg.Done() }
+		f := func() { c.SendPing(); wg.Done() }
 		// these shouldn't block
 		assertDoesNotBlock(t, f, 10*time.Second, fmt.Sprintf("ping %v blocked", i))
 	}
@@ -79,7 +79,7 @@ func TestSeqBlock(t *testing.T) {
 	wg2 := sync.WaitGroup{}
 	wg2.Add(1)
 	f := func() {
-		assert.Equal(1<<16, c.SendPing())
+		c.SendPing()
 		wg2.Done()
 	}
 	go assertBlocks(t, f, time.Second, 10*time.Second, "last ping did not block")

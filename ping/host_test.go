@@ -53,21 +53,32 @@ func TestHostOnceFail(t *testing.T) {
 	assert.WithinDuration(time.Now(), p.Sent, timeout*5)
 }
 
-func testSuccess(host string, reResolveEvery int, count int, interval, timeout time.Duration) func(*testing.T) {
+func testInterval(host string, reResolveEvery int, count int, interval, timeout time.Duration) func(*testing.T) {
 	return func(t *testing.T) {
 		assert := assert.New(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancelOn := int64(count * 2)
+		if count == 0 {
+			cancelOn = 10
+		}
 		var received int64
 		hf := func(p *Ping, err error) {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			r := atomic.AddInt64(&received, 1)
+			if r >= cancelOn {
+				cancel()
+			}
 			assert.NoError(err)
-			atomic.AddInt64(&received, 1)
 			assert.NotNil(p)
 			assert.NotZero(p.RTT())
 			assert.NotZero(p.Recieved)
-			assert.True(p.Dst.IP.Equal(net.ParseIP(host)))
 		}
-		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
-		expTm := time.NewTimer(interval*time.Duration(count) + 3*timeout)
+		expTm := time.NewTimer(interval*time.Duration(cancelOn) + 3*timeout)
 		go func() {
 			select {
 			case <-done:
@@ -77,15 +88,27 @@ func testSuccess(host string, reResolveEvery int, count int, interval, timeout t
 				assert.FailNow("interval test did not complete in time")
 			}
 		}()
-		assert.NoError(HostInterval(ctx, host, reResolveEvery, hf, count, interval, timeout))
+		switch interval {
+		case -1:
+			assert.NoError(HostFlood(ctx, host, reResolveEvery, hf, count, timeout))
+		default:
+			assert.NoError(HostInterval(ctx, host, reResolveEvery, hf, count, interval, timeout))
+		}
 		close(done)
-		time.Sleep(timeout)
-		assert.Equal(int64(count), atomic.LoadInt64(&received))
+		switch count {
+		case 0:
+			assert.True(atomic.LoadInt64(&received) >= cancelOn)
+		default:
+			assert.Equal(int64(count), atomic.LoadInt64(&received))
+		}
 	}
 }
 
-func TestHostSuccess(t *testing.T) {
+func TestHostInterval(t *testing.T) {
+	DefaultSocket().SetWorkers(4)
 	intervals := []time.Duration{
+		-1,
+		0,
 		time.Nanosecond,
 		time.Microsecond,
 		100 * time.Microsecond,
@@ -93,6 +116,7 @@ func TestHostSuccess(t *testing.T) {
 		time.Second,
 	}
 	counts := []int{
+		0,
 		1,
 		5,
 		10,
@@ -107,12 +131,13 @@ func TestHostSuccess(t *testing.T) {
 	for _, h := range hosts {
 		h := h
 		t.Run(fmt.Sprintf("host-%v", h), func(t *testing.T) {
+			t.Parallel()
 			for _, c := range counts {
 				c := c
 				t.Run(fmt.Sprintf("count-%v", c), func(t *testing.T) {
 					for _, i := range intervals {
 						i := i
-						t.Run(fmt.Sprintf("int-%v", i), testSuccess(h, 0, c, i, time.Second))
+						t.Run(fmt.Sprintf("int-%v", i), testInterval(h, 0, c, i, time.Second))
 					}
 				})
 			}

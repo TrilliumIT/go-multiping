@@ -39,7 +39,7 @@ func New() *Socket {
 		v6tmCancel: func() {},
 	}
 	s.v4conn = conn.New(4, s.v4handle)
-	s.v6conn = conn.New(4, s.v6handle)
+	s.v6conn = conn.New(6, s.v6handle)
 	return s
 }
 
