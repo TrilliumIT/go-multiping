@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"runtime/debug"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -65,6 +66,8 @@ func testInterval(host string, reResolveEvery int, count int, interval, timeout 
 		hf := func(p *Ping, err error) {
 			select {
 			case <-ctx.Done():
+				debug.PrintStack()
+				panic("late comer")
 				return
 			default:
 			}
@@ -117,7 +120,7 @@ func TestHostInterval(t *testing.T) {
 		time.Second,
 	}
 	counts := []int{
-		0,
+		//0,
 		1,
 		5,
 		10,

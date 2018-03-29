@@ -87,16 +87,14 @@ func (s *Socket) Drain(dst net.IP, id int) {
 func (s *Socket) drain(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
 	dst net.IP, id int) {
-	var draining chan struct{}
 	s.l.Lock()
 	sm, _, _ := em.Get(dst, uint16(id))
 	if sm == nil {
 		s.l.Unlock()
 		return
 	}
-	draining = sm.Drain()
 	s.l.Unlock()
-	<-draining
+	sm.Drain()
 	return
 }
 
@@ -124,7 +122,8 @@ func (s *Socket) SendPing(p *ping.Ping) error {
 	}
 	tot, err := conn.Send(p)
 	if err != nil {
-		_, _, _, _ = sm.Pop(seq)
+		_, _, done, _ := sm.Pop(seq)
+		done()
 		tm.Del(dst, id, seq)
 		return err
 	}

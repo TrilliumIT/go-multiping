@@ -60,16 +60,14 @@ func handle(
 	if !ok {
 		return
 	}
-	sp, sl, draining, err := sm.Pop(rp.Seq)
+	sp, _, done, err := sm.Pop(rp.Seq)
 	if err == seqmap.ErrDoesNotExist {
 		return
 	}
 	tm.Del(rp.Dst.IP, rp.ID, rp.Seq)
 	sp.UpdateFrom(rp)
 	sm.Handle(sp, err)
-	if draining != nil && sl == 0 {
-		close(draining)
-	}
+	done()
 }
 
 func (s *Socket) v4handle(rp *ping.Ping, err error) {
