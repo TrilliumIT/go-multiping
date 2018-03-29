@@ -8,7 +8,7 @@ import (
 )
 
 type Map struct {
-	l        sync.RWMutex
+	l        sync.Mutex
 	to       tMap
 	t        *time.Timer
 	nextIP   net.IP
@@ -47,19 +47,18 @@ func New(proto int) *Map {
 func (m *Map) Add(ip net.IP, id, seq int, t time.Time) {
 	m.l.Lock()
 	m.to.add(ip, id, seq, t)
-	m.l.Unlock()
 	m.setNext()
+	m.l.Unlock()
 }
 
 func (m *Map) Del(ip net.IP, id, seq int) {
 	m.l.Lock()
 	m.to.del(ip, id, seq)
-	m.l.Unlock()
 	m.setNext()
+	m.l.Unlock()
 }
 
 func (m *Map) setNext() {
-	m.l.RLock()
 	pnt := m.nextTime
 	m.nextIP, m.nextID, m.nextSeq, m.nextTime = m.to.getNext()
 	if pnt != m.nextTime {
@@ -72,7 +71,6 @@ func (m *Map) setNext() {
 			m.t.Reset(time.Until(m.nextTime))
 		}
 	}
-	m.l.RUnlock()
 }
 
 func (m *Map) Next(ctx context.Context) (ip net.IP, id, seq int, t time.Time) {
@@ -90,8 +88,8 @@ func (m *Map) Next(ctx context.Context) (ip net.IP, id, seq int, t time.Time) {
 			continue
 		}
 		m.to.del(ip, id, seq)
-		m.l.Unlock()
 		m.setNext()
+		m.l.Unlock()
 		return
 	}
 }
