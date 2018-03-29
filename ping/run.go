@@ -3,6 +3,8 @@ package ping
 import (
 	"context"
 	"time"
+
+	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )
 
 type ret struct {
@@ -11,7 +13,7 @@ type ret struct {
 }
 
 // takes handle returns a send and a close function and an error
-func runOnce(sendGet func(HandleFunc) (func() int, func() error, error)) (*Ping, error) {
+func runOnce(sendGet func(HandleFunc) (func(), func() error, error)) (*Ping, error) {
 	rCh := make(chan *ret)
 	h := func(p *Ping, err error) {
 		rCh <- &ret{p, err}
@@ -26,7 +28,7 @@ func runOnce(sendGet func(HandleFunc) (func() int, func() error, error)) (*Ping,
 	return r.p, r.err
 }
 
-func runInterval(ctx context.Context, send func() int, count int, interval time.Duration) {
+func runInterval(ctx context.Context, getPing func() (*ping.Ping, error), sendPing func(*ping.Ping, error), count int, interval time.Duration) {
 	var tC <-chan time.Time
 	switch interval {
 	case 0:
@@ -39,12 +41,13 @@ func runInterval(ctx context.Context, send func() int, count int, interval time.
 		defer t.Stop()
 	}
 
-	for cCount := send(); cCount < count || count == 0; cCount = send() {
+	for p, err := getPing(); p.Count < count || count == 0; p, err = getPing() {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
+		sendPing(p, err)
 		select {
 		case <-ctx.Done():
 			return
@@ -53,13 +56,14 @@ func runInterval(ctx context.Context, send func() int, count int, interval time.
 	}
 }
 
-func runFlood(ctx context.Context, send func() int, fC <-chan struct{}, count int) {
-	for cCount := send(); cCount < count || count == 0; cCount = send() {
+func runFlood(ctx context.Context, getPing func() (*ping.Ping, error), sendPing func(*ping.Ping, error), fC <-chan struct{}, count int) {
+	for p, err := getPing(); p.Count < count || count == 0; p, err = getPing() {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
+		sendPing(p, err)
 		select {
 		case <-ctx.Done():
 			return

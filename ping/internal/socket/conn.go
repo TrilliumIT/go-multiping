@@ -79,22 +79,26 @@ func (s *Socket) del(
 	return err
 }
 
-func (s *Socket) Drain(dst net.IP, id int) error {
+func (s *Socket) Drain(dst net.IP, id int) chan struct{} {
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
-	return s.del(conn, em, tm, cancel, dst, id)
+	return s.drain(conn, em, tm, cancel, dst, id)
 }
+
 func (s *Socket) drain(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
-	dst net.IP, id int) error {
+	dst net.IP, id int) chan struct{} {
+	var draining chan struct{}
 	s.l.Lock()
-	sm, _, sl := em.Get(dst, uint16(id))
-	if sl == 0 {
+	sm, _, _ := em.Get(dst, uint16(id))
+	if sm == nil {
 		s.l.Unlock()
-		return s.del(conn, em, tm, cancel, dst, id)
+		draining = make(chan struct{})
+		close(draining)
+		return draining
 	}
-	sm.Drain()
+	draining = sm.Drain()
 	s.l.Unlock()
-	return nil
+	return draining
 }
 
 // SendPing sends the ping, in the process it sets the sent time

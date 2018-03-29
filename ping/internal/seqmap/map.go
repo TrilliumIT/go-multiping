@@ -14,7 +14,7 @@ type Map struct {
 	seqOffset    int
 	fullWaiting  bool
 	unfullNotify chan struct{}
-	draining     bool
+	draining     chan struct{}
 }
 
 func New(h func(*ping.Ping, error)) *Map {
@@ -30,7 +30,7 @@ var ErrDoesNotExist = errors.New("does not exist")
 func (s *Map) Add(p *ping.Ping) (length int) {
 	var idx uint16
 	s.l.Lock()
-	s.draining = false
+	s.draining = nil
 	for {
 		if len(s.m) >= 1<<16 {
 			s.fullWaiting = true
@@ -57,7 +57,7 @@ func (s *Map) Add(p *ping.Ping) (length int) {
 	return length
 }
 
-func (s *Map) Pop(seq int) (*ping.Ping, int, bool, error) {
+func (s *Map) Pop(seq int) (*ping.Ping, int, chan struct{}, error) {
 	idx := uint16(seq)
 	var l int
 	var err error
@@ -84,8 +84,15 @@ func (s *Map) Close() {
 	s.l.Unlock()
 }
 
-func (s *Map) Drain() {
+func (s *Map) Drain() chan struct{} {
 	s.l.Lock()
-	s.draining = true
+	if s.draining == nil {
+		s.draining = make(chan struct{})
+	}
+	if len(s.m) == 0 {
+		close(s.draining)
+	}
+	draining := s.draining
 	s.l.Unlock()
+	return draining
 }

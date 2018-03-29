@@ -3,6 +3,7 @@ package ping
 import (
 	"context"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,6 +16,7 @@ type HostConn struct {
 	s              *Socket
 	ipc            *ipConn
 	draining       []*ipConn
+	drainWg        sync.WaitGroup
 	host           string
 	count          int64
 	reResolveEvery int
@@ -43,37 +45,50 @@ func (s *Socket) newHostConn(host string, reResolveEvery int, handle func(*ping.
 	}
 }
 
-// SendPing sends a ping
-func (h *HostConn) SendPing() int {
-	count := int(atomic.AddInt64(&h.count, 1))
+func (h *HostConn) getNextPing() (*ping.Ping, error) {
 	p := &ping.Ping{
-		Count:   count,
+		Count:   int(atomic.AddInt64(&h.count, 1)),
 		Host:    h.host,
 		TimeOut: h.timeout,
 		Sent:    time.Now(),
 	}
-	if h.ipc == nil || (h.reResolveEvery != 0 && count%h.reResolveEvery == 0) {
+	if h.ipc == nil || (h.reResolveEvery != 0 && p.Count%h.reResolveEvery == 0) {
 		var dst *net.IPAddr
 		dst, err := net.ResolveIPAddr("ip", h.host)
 		changed := dst == nil || h.ipc == nil || h.ipc.dst == nil || !dst.IP.Equal(h.ipc.dst.IP)
 		if err != nil {
-			h.handle(p, err)
-			return count
+			return p, err
 		}
 		if changed {
 			if h.ipc != nil {
-				h.ipc.drain()
+				h.drainWg.Add(1)
+				go func() {
+					h.ipc.drain()
+					h.drainWg.Done()
+				}()
 				h.draining = append(h.draining, h.ipc)
 			}
 			h.ipc, err = h.s.newipConn(dst, h.handle, h.timeout)
 			if err != nil {
-				h.handle(p, err)
-				return count
+				return p, err
 			}
 		}
 	}
+	return p, nil
+}
+
+func (h *HostConn) sendPing(p *ping.Ping, err error) {
+	if err != nil {
+		h.handle(p, err)
+		return
+	}
 	h.ipc.sendPing(p)
-	return count
+	return
+}
+
+// SendPing sends a ping
+func (h *HostConn) SendPing() {
+	h.sendPing(h.getNextPing())
 }
 
 func (h *HostConn) Close() error {
@@ -86,6 +101,15 @@ func (h *HostConn) Close() error {
 	return h.ipc.close()
 }
 
+func (h *HostConn) Drain() {
+	h.drainWg.Add(1)
+	go func() {
+		h.ipc.drain()
+		h.drainWg.Done()
+	}()
+	h.drainWg.Wait()
+}
+
 func HostOnce(host string, timeout time.Duration) (*Ping, error) {
 	return DefaultSocket().HostOnce(host, timeout)
 }
@@ -94,7 +118,7 @@ func HostOnce(host string, timeout time.Duration) (*Ping, error) {
 // Zero is no timeout and IPOnce will block forever if a reply is never recieved
 // It is not recommended to use IPOnce in a loop, use Interval, or create a Conn and call SendPing() in a loop
 func (s *Socket) HostOnce(host string, timeout time.Duration) (*Ping, error) {
-	sendGet := func(hdl HandleFunc) (func() int, func() error, error) {
+	sendGet := func(hdl HandleFunc) (func(), func() error, error) {
 		h := s.NewHostConn(host, 1, hdl, timeout)
 		return h.SendPing, h.Close, nil
 	}
@@ -117,7 +141,8 @@ func HostInterval(ctx context.Context, host string, reResolveEvery int, handler 
 func (s *Socket) HostInterval(ctx context.Context, host string, reResolveEvery int, handler HandleFunc, count int, interval, timeout time.Duration) error {
 	h := s.NewHostConn(host, reResolveEvery, handler, timeout)
 
-	runInterval(ctx, h.SendPing, count, interval)
+	runInterval(ctx, h.getNextPing, h.sendPing, count, interval)
+	h.Drain()
 	return h.Close()
 }
 
@@ -135,6 +160,7 @@ func (s *Socket) HostFlood(ctx context.Context, host string, reResolveEvery int,
 
 	h := s.NewHostConn(host, reResolveEvery, floodHander, timeout)
 
-	runFlood(ctx, h.SendPing, fC, count)
+	runFlood(ctx, h.getNextPing, h.sendPing, fC, count)
+	h.Drain()
 	return h.Close()
 }

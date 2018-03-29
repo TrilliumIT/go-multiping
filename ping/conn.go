@@ -61,7 +61,8 @@ func (c *ipConn) drain() {
 	if c.s == nil {
 		return
 	}
-	c.s.s.Drain(c.dst.IP, c.id)
+	draining := c.s.s.Drain(c.dst.IP, c.id)
+	<-draining
 }
 
 var ErrNotRunning = conn.ErrNotRunning

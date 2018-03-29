@@ -64,8 +64,8 @@ func handle(
 	if err == seqmap.ErrDoesNotExist {
 		return
 	}
-	if draining && sl == 0 {
-		_, _, _ = em.Pop(rp.Dst.IP, uint16(rp.ID))
+	if draining != nil && sl == 0 {
+		close(draining)
 	}
 	tm.Del(rp.Dst.IP, rp.ID, rp.Seq)
 	sp.UpdateFrom(rp)

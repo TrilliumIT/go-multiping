@@ -30,21 +30,36 @@ func (c *IPConn) ID() int {
 	return c.ipc.id
 }
 
+func (c *IPConn) getNextPing() (*ping.Ping, error) {
+	p := &ping.Ping{
+		Count: int(atomic.AddInt64(&c.count, 1)),
+		Sent:  time.Now(),
+	}
+	return p, nil
+}
+
+func (c *IPConn) sendPing(p *ping.Ping, err error) {
+	if err != nil {
+		c.ipc.handle(p, err)
+		return
+	}
+	c.ipc.sendPing(p)
+	return
+}
+
 // SendPing sends a ping, it returns the count
 // Errors sending will be sent to the handler
 // returns the count of the sent packet
-func (c *IPConn) SendPing() int {
-	count := int(atomic.AddInt64(&c.count, 1))
-	p := &ping.Ping{
-		Count: count,
-		Sent:  time.Now(),
-	}
-	c.ipc.sendPing(p)
-	return count
+func (c *IPConn) SendPing() {
+	c.sendPing(c.getNextPing())
 }
 
 func (c *IPConn) Close() error {
 	return c.ipc.close()
+}
+
+func (c *IPConn) Drain() {
+	c.ipc.drain()
 }
 
 func IPOnce(dst *net.IPAddr, timeout time.Duration) (*Ping, error) {
@@ -55,7 +70,7 @@ func IPOnce(dst *net.IPAddr, timeout time.Duration) (*Ping, error) {
 // Zero is no timeout and IPOnce will block forever if a reply is never recieved
 // It is not recommended to use IPOnce in a loop, use Interval, or create a Conn and call SendPing() in a loop
 func (s *Socket) IPOnce(dst *net.IPAddr, timeout time.Duration) (*Ping, error) {
-	sendGet := func(h HandleFunc) (func() int, func() error, error) {
+	sendGet := func(h HandleFunc) (func(), func() error, error) {
 		c, err := s.NewIPConn(dst, h, timeout)
 		return c.SendPing, c.Close, err
 	}
@@ -81,7 +96,8 @@ func (s *Socket) IPInterval(ctx context.Context, dst *net.IPAddr, handler Handle
 		return err
 	}
 
-	runInterval(ctx, c.SendPing, count, interval)
+	runInterval(ctx, c.getNextPing, c.sendPing, count, interval)
+	c.Drain()
 	return c.Close()
 }
 
@@ -102,6 +118,7 @@ func (s *Socket) IPFlood(ctx context.Context, dst *net.IPAddr, handler HandleFun
 		return err
 	}
 
-	runFlood(ctx, c.SendPing, fC, count)
+	runFlood(ctx, c.getNextPing, c.sendPing, fC, count)
+	c.Drain()
 	return c.Close()
 }

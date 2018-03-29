@@ -79,7 +79,8 @@ func testSuccess(host string, reResolveEvery int, count int, interval, timeout t
 		}()
 		assert.NoError(HostInterval(ctx, host, reResolveEvery, hf, count, interval, timeout))
 		close(done)
-		assert.Equal(int64(count), received)
+		time.Sleep(timeout)
+		assert.Equal(int64(count), atomic.LoadInt64(&received))
 	}
 }
 
@@ -92,7 +93,6 @@ func TestHostSuccess(t *testing.T) {
 		time.Second,
 	}
 	counts := []int{
-		0,
 		1,
 		5,
 		10,

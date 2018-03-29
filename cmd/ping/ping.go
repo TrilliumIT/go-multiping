@@ -85,7 +85,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	sends := []func() int{}
+	sends := []func(){}
 	closes := []func() error{}
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -147,6 +147,5 @@ func main() {
 	}
 
 	wg.Wait()
-	time.Sleep(time.Millisecond)
-	fmt.Printf("%v recieved, %v dropped, %v errored\n", recieved, dropped, errored)
+	fmt.Printf("%v recieved, %v dropped, %v errored\n", atomic.LoadInt64(&recieved), atomic.LoadInt64(&dropped), atomic.LoadInt64(&errored))
 }
