@@ -92,7 +92,8 @@ send:
 		if err != nil {
 			return err
 		}
-		p.Len, err = c.conn.writeTo(b, p.Dst)
+		p.Len = len(b)
+		_, err = c.conn.writeTo(b, p.Dst)
 		if err != nil {
 			subErr := err
 			for {
