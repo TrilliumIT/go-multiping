@@ -26,15 +26,16 @@ func testIPDrain(t *testing.T) {
 		atomic.AddInt64(&received, 1)
 		assert.NoError(err)
 		assert.NotNil(p)
-		assert.Equal(int64(1), atomic.LoadInt64(&received))
+		assert.Equal(int64(1), atomic.LoadInt64(&received), "unexpected ping for %p", p)
 	}
 	dst, err := net.ResolveIPAddr("ip", "127.0.0.1")
 	assert.NoError(err)
 	ipc, err := NewIPConn(dst, h, time.Second)
 	assert.NoError(err)
-	ipc.SendPing()
+	p, err := ipc.getNextPing()
+	ipc.sendPing(p, err)
 	ipc.Drain()
-	assert.Equal(int64(1), atomic.LoadInt64(&received))
+	assert.Equal(int64(1), atomic.LoadInt64(&received), "missed ping for %p", p)
 	assert.NoError(ipc.Close())
 }
 

@@ -54,7 +54,7 @@ func (s *Map) Add(p *ping.Ping) (length int) {
 			panic("add after draining")
 		}
 		length = len(s.m)
-		fmt.Printf("added, len %v\n", length)
+		fmt.Printf("added %p to %p\n", p, s)
 		break
 	}
 	s.l.Unlock()
@@ -79,9 +79,15 @@ func (s *Map) Pop(seq ping.Seq) (*ping.Ping, int, func(), error) {
 		s.unfullNotify <- struct{}{}
 	}
 	if l == 0 && s.draining != nil {
-		fmt.Printf("Popped last, returning done\n")
+		fmt.Printf("Popped %p from %p, returning done\n", p, s)
 		draining := s.draining
-		done = func() { fmt.Printf("closing draining\n"); close(draining); fmt.Printf("closed draining\n") }
+		done = func() { close(draining) }
+	} else {
+		if l == 0 {
+			fmt.Printf("Popped %p from %p, no drain requested\n", p, s)
+		} else {
+			fmt.Printf("Popped %p from %p\n", p, s)
+		}
 	}
 	s.l.Unlock()
 	return p, l, done, err
@@ -94,12 +100,16 @@ func (s *Map) Close() {
 	s.l.Unlock()
 }
 
+// TODO // Drain gets called while handle is still running, causes drain to return while handle is processing and dropped packet!
 func (s *Map) Drain() {
 	s.l.Lock()
 	if s.draining == nil {
 		s.draining = make(chan struct{})
 		if len(s.m) == 0 {
+			fmt.Printf("drain requested from %p, already 0\n", s)
 			close(s.draining)
+		} else {
+			fmt.Printf("drain requested from %p\n", s)
 		}
 	}
 	draining := s.draining
