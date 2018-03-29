@@ -32,6 +32,11 @@ func (i ip6m) del(ip net.IP, id, seq int) {
 	delete(i, toIP6Idx(ip, id, seq))
 }
 
+func (i ip6m) exists(ip net.IP, id, seq int) bool {
+	_, ok := i[toIP6Idx(ip, id, seq)]
+	return ok
+}
+
 func (i ip6m) getNext() (ip net.IP, id int, seq int, t time.Time) {
 	for k, v := range i {
 		if v.Before(t) || t.IsZero() {

@@ -20,6 +20,7 @@ type Map struct {
 type tMap interface {
 	add(net.IP, int, int, time.Time)
 	del(net.IP, int, int)
+	exists(net.IP, int, int) bool
 	getNext() (net.IP, int, int, time.Time)
 }
 
@@ -48,6 +49,15 @@ func (m *Map) Add(ip net.IP, id, seq int, t time.Time) {
 	m.l.Lock()
 	m.to.add(ip, id, seq, t)
 	m.setNext()
+	m.l.Unlock()
+}
+
+func (m *Map) Update(ip net.IP, id, seq int, t time.Time) {
+	m.l.Lock()
+	if m.to.exists(ip, id, seq) {
+		m.to.add(ip, id, seq, t)
+		m.setNext()
+	}
 	m.l.Unlock()
 }
 

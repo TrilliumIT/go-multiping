@@ -63,7 +63,6 @@ func (c *Conn) Run(workers int) error {
 func (c *Conn) Stop() error {
 	c.l.Lock()
 	c.cancel()
-	// TODO is throwing packets still necessary?
 	err := c.conn.close()
 	if err != nil {
 		c.l.Unlock()

@@ -79,26 +79,25 @@ func (s *Socket) del(
 	return err
 }
 
-func (s *Socket) Drain(dst net.IP, id int) chan struct{} {
+func (s *Socket) Drain(dst net.IP, id int) {
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
-	return s.drain(conn, em, tm, cancel, dst, id)
+	s.drain(conn, em, tm, cancel, dst, id)
 }
 
 func (s *Socket) drain(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
-	dst net.IP, id int) chan struct{} {
+	dst net.IP, id int) {
 	var draining chan struct{}
 	s.l.Lock()
 	sm, _, _ := em.Get(dst, uint16(id))
 	if sm == nil {
 		s.l.Unlock()
-		draining = make(chan struct{})
-		close(draining)
-		return draining
+		return
 	}
 	draining = sm.Drain()
 	s.l.Unlock()
-	return draining
+	<-draining
+	return
 }
 
 // SendPing sends the ping, in the process it sets the sent time
@@ -121,17 +120,17 @@ func (s *Socket) SendPing(p *ping.Ping) error {
 	}
 	dst, id, seq, to := p.Dst.IP, p.ID, p.Seq, p.TimeOut
 	if to > 0 {
-		tm.Add(dst, id, seq, time.Now().Add(to).Add(time.Millisecond))
+		tm.Add(dst, id, seq, time.Now().Add(2*to))
 	}
 	tot, err := conn.Send(p)
 	if err != nil {
-		_, _, _, _ = sm.Pop(p.Seq)
-		tm.Del(p.Dst.IP, p.ID, p.Seq)
+		_, _, _, _ = sm.Pop(seq)
+		tm.Del(dst, id, seq)
 		return err
 	}
 	if to > 0 {
 		// update timeout with accurate timeout time
-		tm.Add(dst, id, seq, tot)
+		tm.Update(dst, id, seq, tot)
 	}
 	return nil
 }
