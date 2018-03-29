@@ -1,6 +1,7 @@
 package ping
 
 import (
+	"context"
 	"net"
 	"testing"
 	"time"
@@ -48,4 +49,35 @@ func TestHostOnceFail(t *testing.T) {
 	assert.Equal(host, p.Host)
 	assert.Nil(p.Dst)
 	assert.WithinDuration(time.Now(), p.Sent, timeout*5)
+}
+
+func testHostIntervalSuccess(host string, reResolveEvery int, count int, interval, timeout time.Duration) func(*testing.T) {
+	return func(t *testing.T) {
+		assert := assert.New(t)
+		hf := func(p *Ping, err error) {
+			assert.NoError(err)
+			assert.NotNil(p)
+			assert.NotZero(p.RTT())
+			assert.NotZero(p.Recieved)
+			assert.True(p.Dst.IP.Equal(net.ParseIP(host)))
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		expTm := time.NewTimer(interval*time.Duration(count) + 3*timeout)
+		go func() {
+			select {
+			case <-done:
+				return
+			case <-expTm.C:
+				cancel()
+				assert.FailNow("interval test did not complete in time")
+			}
+		}()
+		assert.NoError(HostInterval(ctx, host, reResolveEvery, hf, count, interval, timeout))
+		close(done)
+	}
+}
+
+func TestHostInterval(t *testing.T) {
+	t.Run("TestHostInterval", testHostIntervalSuccess("127.0.0.1", 0, 100, 10*time.Microsecond, time.Second))
 }

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping"
@@ -56,36 +57,27 @@ func main() {
 		return
 	}
 
-	var recieved, dropped, errored uint64
-	var clock sync.Mutex
+	var recieved, dropped, errored int64
 
 	handle := func(pkt *ping.Ping, err error) {
-		clock.Lock()
-		defer clock.Unlock()
 		if err == nil {
-			recieved++
-			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v count: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID, pkt.Count)
-			return
-		}
-
-		dropped++
-		if err == ping.ErrTimedOut {
-			fmt.Printf("Packet timed out from %v seq: %v id: %v count: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count)
-			return
-		}
-
-		fmt.Printf("Packet errored from %v seq: %v id: %v err: %v count: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count, err)
-	}
-	if *quiet {
-		handle = func(pkt *ping.Ping, err error) {
-			clock.Lock()
-			if err == nil {
-				recieved++
-				clock.Unlock()
-				return
+			atomic.AddInt64(&recieved, 1)
+			if !*quiet {
+				fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v count: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID, pkt.Count)
 			}
-			dropped++
-			clock.Unlock()
+			return
+		}
+
+		atomic.AddInt64(&dropped, 1)
+		if err == ping.ErrTimedOut {
+			if !*quiet {
+				fmt.Printf("Packet timed out from %v seq: %v id: %v count: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count)
+			}
+			return
+		}
+
+		if !*quiet {
+			fmt.Printf("Packet errored from %v seq: %v id: %v err: %v count: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count, err)
 		}
 	}
 
@@ -93,7 +85,6 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	runs := []func() error{}
 	sends := []func() int{}
 	closes := []func() error{}
 	c := make(chan os.Signal, 1)
@@ -113,6 +104,7 @@ func main() {
 		}
 	}()
 
+	var wg sync.WaitGroup
 	for _, host := range flag.Args() {
 		switch {
 		case *manual:
@@ -121,21 +113,24 @@ func main() {
 			sends = append(sends, hc.SendPing)
 			closes = append(closes, hc.Close)
 		case *interval == 0:
-			runs = append(runs, func() error { return ping.HostFlood(ctx, host, *reResolve, handle, *count, *timeout) })
+			wg.Add(1)
+			go func(host string) {
+				err := ping.HostFlood(ctx, host, *reResolve, handle, *count, *timeout)
+				if err != nil {
+					panic(err)
+				}
+				wg.Done()
+			}(host)
 		default:
-			runs = append(runs, func() error { return ping.HostInterval(ctx, host, *reResolve, handle, *count, *interval, *timeout) })
+			wg.Add(1)
+			go func(host string) {
+				err := ping.HostInterval(ctx, host, *reResolve, handle, *count, *interval, *timeout)
+				if err != nil {
+					panic(err)
+				}
+				wg.Done()
+			}(host)
 		}
-	}
-
-	var wg sync.WaitGroup
-	for _, run := range runs {
-		wg.Add(1)
-		go func(r func() error) {
-			if err := r(); err != nil {
-				panic(err)
-			}
-			wg.Done()
-		}(run)
 	}
 
 	if *manual {
@@ -152,7 +147,6 @@ func main() {
 	}
 
 	wg.Wait()
-	clock.Lock()
+	time.Sleep(time.Millisecond)
 	fmt.Printf("%v recieved, %v dropped, %v errored\n", recieved, dropped, errored)
-	clock.Unlock()
 }
