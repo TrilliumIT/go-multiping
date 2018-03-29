@@ -3,8 +3,49 @@ package ping
 import (
 	"context"
 	"net"
+	"sync/atomic"
 	"time"
+
+	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )
+
+// IPConn holds a connection to a destination
+type IPConn struct {
+	count int64
+	ipc   *ipConn
+}
+
+// NewIPConn creates a new connection
+func NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPConn, error) {
+	return DefaultSocket().NewIPConn(dst, handle, timeout)
+}
+
+// NewIPConn creates a new connection
+func (s *Socket) NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPConn, error) {
+	return s.newIPConn(dst, iHandle(handle), timeout)
+}
+
+// ID returns the ICMP ID associated with this connection
+func (c *IPConn) ID() int {
+	return c.ipc.id
+}
+
+// SendPing sends a ping, it returns the count
+// Errors sending will be sent to the handler
+// returns the count of the sent packet
+func (c *IPConn) SendPing() int {
+	count := int(atomic.AddInt64(&c.count, 1))
+	p := &ping.Ping{
+		Count: count,
+		Sent:  time.Now(),
+	}
+	c.ipc.sendPing(p)
+	return count
+}
+
+func (c *IPConn) Close() error {
+	return c.ipc.close()
+}
 
 func IPOnce(dst *net.IPAddr, timeout time.Duration) (*Ping, error) {
 	return DefaultSocket().IPOnce(dst, timeout)
