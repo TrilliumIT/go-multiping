@@ -56,7 +56,8 @@ func handle(
 	em *endpointmap.Map, tm *timeoutmap.Map,
 	rp *ping.Ping, err error,
 ) {
-	sm, ok, _ := em.Get(rp.Dst.IP, uint16(rp.ID))
+	tm.Del(rp.Dst.IP, rp.ID, rp.Seq)
+	sm, ok, _ := em.Get(rp.Dst.IP, rp.ID)
 	if !ok {
 		return
 	}
@@ -64,7 +65,6 @@ func handle(
 	if err == seqmap.ErrDoesNotExist {
 		return
 	}
-	tm.Del(rp.Dst.IP, rp.ID, rp.Seq)
 	sp.UpdateFrom(rp)
 	sm.Handle(sp, err)
 	done()

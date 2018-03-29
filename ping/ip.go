@@ -27,7 +27,7 @@ func (s *Socket) NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Dura
 
 // ID returns the ICMP ID associated with this connection
 func (c *IPConn) ID() int {
-	return c.ipc.id
+	return int(c.ipc.id)
 }
 
 func (c *IPConn) getNextPing() (*ping.Ping, error) {

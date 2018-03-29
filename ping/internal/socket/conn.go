@@ -17,7 +17,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func (s *Socket) Add(dst *net.IPAddr, h func(*ping.Ping, error)) (int, error) {
+func (s *Socket) Add(dst *net.IPAddr, h func(*ping.Ping, error)) (ping.Id, error) {
 	conn, em, tm, _, setCancel := s.getConnMaps(dst.IP)
 	return s.add(conn, em, tm, setCancel, dst, h)
 }
@@ -28,7 +28,7 @@ var ErrTimedOut = errors.New("timed out")
 func (s *Socket) add(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, setCancel func(func()),
 	dst *net.IPAddr, h func(*ping.Ping, error),
-) (int, error) {
+) (ping.Id, error) {
 	var id int
 	var sl int
 	var err error
@@ -36,7 +36,7 @@ func (s *Socket) add(
 	defer s.l.Unlock()
 	startId := rand.Intn(1<<16 - 1)
 	for id = startId; id < startId+1<<16-1; id++ {
-		_, sl, err = em.Add(dst.IP, uint16(id), h)
+		_, sl, err = em.Add(dst.IP, ping.Id(id), h)
 		if err == endpointmap.ErrAlreadyExists {
 			continue
 		}
@@ -52,22 +52,22 @@ func (s *Socket) add(
 				}()
 			}
 		}
-		return int(uint16(id)), err
+		return ping.Id(id), err
 	}
 	return 0, ErrNoIDs
 }
 
-func (s *Socket) Del(dst net.IP, id int) error {
+func (s *Socket) Del(dst net.IP, id ping.Id) error {
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
 	return s.del(conn, em, tm, cancel, dst, id)
 }
 
 func (s *Socket) del(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
-	dst net.IP, id int) error {
+	dst net.IP, id ping.Id) error {
 	s.l.Lock()
 	defer s.l.Unlock()
-	sm, sl, err := em.Pop(dst, uint16(id))
+	sm, sl, err := em.Pop(dst, id)
 	if err != nil {
 		return err
 	}
@@ -79,16 +79,16 @@ func (s *Socket) del(
 	return err
 }
 
-func (s *Socket) Drain(dst net.IP, id int) {
+func (s *Socket) Drain(dst net.IP, id ping.Id) {
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
 	s.drain(conn, em, tm, cancel, dst, id)
 }
 
 func (s *Socket) drain(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
-	dst net.IP, id int) {
+	dst net.IP, id ping.Id) {
 	s.l.Lock()
-	sm, _, _ := em.Get(dst, uint16(id))
+	sm, _, _ := em.Get(dst, id)
 	if sm == nil {
 		s.l.Unlock()
 		return
@@ -105,7 +105,7 @@ func (s *Socket) drain(
 // having been recieved.
 func (s *Socket) SendPing(p *ping.Ping) error {
 	conn, em, tm, _, _ := s.getConnMaps(p.Dst.IP)
-	sm, ok, _ := em.Get(p.Dst.IP, uint16(p.ID))
+	sm, ok, _ := em.Get(p.Dst.IP, p.ID)
 	if !ok {
 		return endpointmap.ErrDoesNotExist
 	}

@@ -102,13 +102,9 @@ func (h *HostConn) Close() error {
 }
 
 func (h *HostConn) Drain() {
-	h.drainWg.Add(1)
-	go func() {
-		if h.ipc != nil {
-			h.ipc.drain()
-		}
-		h.drainWg.Done()
-	}()
+	if h.ipc != nil {
+		h.ipc.drain()
+	}
 	h.drainWg.Wait()
 }
 

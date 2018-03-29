@@ -2,6 +2,7 @@ package seqmap
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
@@ -9,7 +10,7 @@ import (
 
 type Map struct {
 	l            sync.RWMutex
-	m            map[uint16]*ping.Ping
+	m            map[ping.Seq]*ping.Ping
 	Handle       func(*ping.Ping, error)
 	seqOffset    int
 	fullWaiting  bool
@@ -19,7 +20,7 @@ type Map struct {
 
 func New(h func(*ping.Ping, error)) *Map {
 	return &Map{
-		m:            make(map[uint16]*ping.Ping),
+		m:            make(map[ping.Seq]*ping.Ping),
 		Handle:       h,
 		unfullNotify: make(chan struct{}),
 	}
@@ -28,7 +29,7 @@ func New(h func(*ping.Ping, error)) *Map {
 var ErrDoesNotExist = errors.New("does not exist")
 
 func (s *Map) Add(p *ping.Ping) (length int) {
-	var idx uint16
+	var idx ping.Seq
 	s.l.Lock()
 	for {
 		if len(s.m) >= 1<<16 {
@@ -41,15 +42,19 @@ func (s *Map) Add(p *ping.Ping) (length int) {
 			s.l.Lock()
 			continue
 		}
-		idx = uint16(p.Count + s.seqOffset)
+		idx = ping.Seq(p.Count + s.seqOffset)
 		_, ok := s.m[idx]
 		if ok {
 			s.seqOffset++
 			continue
 		}
-		p.Seq = int(idx)
+		p.Seq = idx
 		s.m[idx] = p
+		if s.draining != nil {
+			panic("add after draining")
+		}
 		length = len(s.m)
+		fmt.Printf("added, len %v\n", length)
 		break
 	}
 	s.l.Unlock()
@@ -57,8 +62,8 @@ func (s *Map) Add(p *ping.Ping) (length int) {
 }
 
 // returns done func to call after handler is compelete
-func (s *Map) Pop(seq int) (*ping.Ping, int, func(), error) {
-	idx := uint16(seq)
+func (s *Map) Pop(seq ping.Seq) (*ping.Ping, int, func(), error) {
+	idx := seq
 	var l int
 	var err error
 	done := func() {}
@@ -74,8 +79,9 @@ func (s *Map) Pop(seq int) (*ping.Ping, int, func(), error) {
 		s.unfullNotify <- struct{}{}
 	}
 	if l == 0 && s.draining != nil {
+		fmt.Printf("Popped last, returning done\n")
 		draining := s.draining
-		done = func() { close(draining) }
+		done = func() { fmt.Printf("closing draining\n"); close(draining); fmt.Printf("closed draining\n") }
 	}
 	s.l.Unlock()
 	return p, l, done, err
@@ -91,11 +97,10 @@ func (s *Map) Close() {
 func (s *Map) Drain() {
 	s.l.Lock()
 	if s.draining == nil {
-		if len(s.m) == 0 {
-			s.l.Unlock()
-			return
-		}
 		s.draining = make(chan struct{})
+		if len(s.m) == 0 {
+			close(s.draining)
+		}
 	}
 	draining := s.draining
 	s.l.Unlock()

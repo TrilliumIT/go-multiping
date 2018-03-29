@@ -57,8 +57,8 @@ func iPingToPing(p *ping.Ping) *Ping {
 	}
 	rp := &Ping{
 		Host:     p.Host,
-		ID:       p.ID,
-		Seq:      p.Seq,
+		ID:       int(p.ID),
+		Seq:      int(p.Seq),
 		Count:    p.Count,
 		Sent:     p.Sent,
 		Recieved: p.Recieved,

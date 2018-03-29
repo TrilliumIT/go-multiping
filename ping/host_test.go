@@ -67,6 +67,7 @@ func testInterval(host string, reResolveEvery int, count int, interval, timeout 
 			select {
 			case <-ctx.Done():
 				debug.PrintStack()
+				fmt.Printf("dst: %v\n", p.Dst)
 				panic("late comer")
 				return
 			default:

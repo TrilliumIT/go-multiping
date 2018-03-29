@@ -68,7 +68,8 @@ func parseEcho(
 	payload []byte,
 	rlen int,
 ) (
-	id, seq int,
+	id ping.Id,
+	seq ping.Seq,
 	sent time.Time,
 	err error,
 ) {
@@ -93,8 +94,8 @@ func parseEcho(
 		return
 	}
 
-	id = e.ID
-	seq = e.Seq
+	id = ping.Id(e.ID)
+	seq = ping.Seq(e.Seq)
 
 	sent, err = ping.BytesToTime(e.Data)
 	return

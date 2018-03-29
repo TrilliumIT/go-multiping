@@ -22,6 +22,9 @@ const (
 	ProtocolIPv6ICMP = 58 // ICMP for IPv6
 )
 
+type Seq uint16
+type Id uint16
+
 // Ping is an ICMP packet that has been received
 type Ping struct {
 	// Host is the hostname that was pinged
@@ -37,9 +40,9 @@ type Ping struct {
 	// Count is the ICMP count
 	Count int
 	// ID is the ICMP ID
-	ID int
+	ID Id
 	// Seq is the ICMP Sequence
-	Seq int
+	Seq Seq
 	// Sent is the time the echo was sent
 	Sent time.Time
 	// Recieved is the time the echo was recieved.
@@ -142,8 +145,8 @@ func (p *Ping) ToICMPMsg() ([]byte, error) {
 		Code: 0,
 		Type: p.sendType(),
 		Body: &icmp.Echo{
-			ID:   p.ID,
-			Seq:  p.Seq,
+			ID:   int(p.ID),
+			Seq:  int(p.Seq),
 			Data: TimeToBytes(p.Sent),
 		},
 	}).Marshal(nil)
