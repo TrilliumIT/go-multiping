@@ -13,8 +13,8 @@ import (
 // Pings run from a HostConn can be configured to periodically re-resolve
 type HostConn struct {
 	s              *Socket
-	ipc            *IPConn
-	draining       []*IPConn
+	ipc            *ipConn
+	draining       []*ipConn
 	host           string
 	count          int64
 	reResolveEvery int
@@ -65,7 +65,7 @@ func (h *HostConn) SendPing() int {
 				h.ipc.drain()
 				h.draining = append(h.draining, h.ipc)
 			}
-			h.ipc, err = h.s.newIPConn(dst, h.handle, h.timeout, h.count)
+			h.ipc, err = h.s.newipConn(dst, h.handle, h.timeout)
 			if err != nil {
 				h.handle(p, err)
 				return count
@@ -78,12 +78,12 @@ func (h *HostConn) SendPing() int {
 
 func (h *HostConn) Close() error {
 	for _, ipc := range h.draining {
-		_ = ipc.Close()
+		_ = ipc.close()
 	}
 	if h.ipc == nil {
 		return nil
 	}
-	return h.ipc.Close()
+	return h.ipc.close()
 }
 
 func HostOnce(host string, timeout time.Duration) (*Ping, error) {

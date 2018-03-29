@@ -12,10 +12,14 @@ import (
 
 // IPConn holds a connection to a destination
 type IPConn struct {
+	count int64
+	ipc   *ipConn
+}
+
+type ipConn struct {
 	s       *Socket
 	dst     *net.IPAddr
 	id      int
-	count   int64
 	timeout time.Duration
 	handle  func(*ping.Ping, error)
 }
@@ -35,26 +39,38 @@ func NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPCo
 
 // NewIPConn creates a new connection
 func (s *Socket) NewIPConn(dst *net.IPAddr, handle HandleFunc, timeout time.Duration) (*IPConn, error) {
-	return s.newIPConn(dst, iHandle(handle), timeout, -1)
+	return s.newIPConn(dst, iHandle(handle), timeout)
 }
 
-func (s *Socket) newIPConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration, count int64) (*IPConn, error) {
+func (s *Socket) newIPConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*IPConn, error) {
 	c := &IPConn{
-		dst:     dst,
-		timeout: timeout,
-		s:       s,
-		handle:  handle,
-		count:   count,
+		count: -1,
 	}
 	var err error
-	c.id, err = s.s.Add(dst, c.handle)
+	c.ipc, err = s.newipConn(dst, handle, timeout)
 	if err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
+func (s *Socket) newipConn(dst *net.IPAddr, handle func(*ping.Ping, error), timeout time.Duration) (*ipConn, error) {
+	ipc := &ipConn{
+		dst:     dst,
+		timeout: timeout,
+		s:       s,
+		handle:  handle,
+	}
+	var err error
+	ipc.id, err = s.s.Add(dst, ipc.handle)
+	return ipc, err
+}
+
 func (c *IPConn) Close() error {
+	return c.ipc.close()
+}
+
+func (c *ipConn) close() error {
 	if c.s == nil {
 		return nil
 	}
@@ -62,7 +78,7 @@ func (c *IPConn) Close() error {
 	return c.s.s.Del(c.dst.IP, c.id)
 }
 
-func (c *IPConn) drain() {
+func (c *ipConn) drain() {
 	if c.s == nil {
 		return
 	}
@@ -78,14 +94,14 @@ func (c *IPConn) SendPing() int {
 	count := int(atomic.AddInt64(&c.count, 1))
 	p := &ping.Ping{
 		Count:   count,
-		TimeOut: c.timeout,
+		TimeOut: c.ipc.timeout,
 		Sent:    time.Now(),
 	}
-	c.sendPing(p)
+	c.ipc.sendPing(p)
 	return count
 }
 
-func (c *IPConn) sendPing(p *ping.Ping) {
+func (c *ipConn) sendPing(p *ping.Ping) {
 	p.Dst, p.ID = c.dst, c.id
 	err := c.s.s.SendPing(p)
 	if err != nil {
@@ -96,5 +112,5 @@ func (c *IPConn) sendPing(p *ping.Ping) {
 
 // ID returns the ICMP ID associated with this connection
 func (c *IPConn) ID() int {
-	return c.id
+	return c.ipc.id
 }
