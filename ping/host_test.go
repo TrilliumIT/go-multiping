@@ -2,7 +2,9 @@ package ping
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -51,11 +53,13 @@ func TestHostOnceFail(t *testing.T) {
 	assert.WithinDuration(time.Now(), p.Sent, timeout*5)
 }
 
-func testHostIntervalSuccess(host string, reResolveEvery int, count int, interval, timeout time.Duration) func(*testing.T) {
+func testSuccess(host string, reResolveEvery int, count int, interval, timeout time.Duration) func(*testing.T) {
 	return func(t *testing.T) {
 		assert := assert.New(t)
+		var received int64
 		hf := func(p *Ping, err error) {
 			assert.NoError(err)
+			atomic.AddInt64(&received, 1)
 			assert.NotNil(p)
 			assert.NotZero(p.RTT())
 			assert.NotZero(p.Recieved)
@@ -75,9 +79,43 @@ func testHostIntervalSuccess(host string, reResolveEvery int, count int, interva
 		}()
 		assert.NoError(HostInterval(ctx, host, reResolveEvery, hf, count, interval, timeout))
 		close(done)
+		assert.Equal(int64(count), received)
 	}
 }
 
-func TestHostInterval(t *testing.T) {
-	t.Run("TestHostInterval", testHostIntervalSuccess("127.0.0.1", 0, 100, 10*time.Microsecond, time.Second))
+func TestHostSuccess(t *testing.T) {
+	intervals := []time.Duration{
+		time.Nanosecond,
+		time.Microsecond,
+		100 * time.Microsecond,
+		time.Millisecond,
+		time.Second,
+	}
+	counts := []int{
+		0,
+		1,
+		5,
+		10,
+		20,
+	}
+	hosts := []string{
+		"127.0.0.1",
+		"127.0.0.2",
+		"localhost",
+		"::1",
+	}
+	for _, h := range hosts {
+		h := h
+		t.Run(fmt.Sprintf("host-%v", h), func(t *testing.T) {
+			for _, c := range counts {
+				c := c
+				t.Run(fmt.Sprintf("count-%v", c), func(t *testing.T) {
+					for _, i := range intervals {
+						i := i
+						t.Run(fmt.Sprintf("int-%v", i), testSuccess(h, 0, c, i, time.Second))
+					}
+				})
+			}
+		})
+	}
 }
