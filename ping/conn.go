@@ -68,9 +68,6 @@ var ErrNotRunning = conn.ErrNotRunning
 
 func (c *ipConn) sendPing(p *ping.Ping) {
 	p.Dst, p.ID, p.TimeOut = c.dst, c.id, c.timeout
-	err := c.s.s.SendPing(p)
-	if err != nil {
-		c.handle(p, err)
-	}
+	c.s.s.SendPing(p)
 	return
 }

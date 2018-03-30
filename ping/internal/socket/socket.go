@@ -61,13 +61,12 @@ func handle(
 	if !ok {
 		return
 	}
-	sp, _, done, err := sm.Pop(rp.Seq)
+	sp, _, err := sm.Pop(rp.Seq)
 	if err == seqmap.ErrDoesNotExist {
 		return
 	}
 	sp.UpdateFrom(rp)
 	sm.Handle(sp, err)
-	done()
 }
 
 func (s *Socket) v4handle(rp *ping.Ping, err error) {

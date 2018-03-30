@@ -2,7 +2,7 @@ package ping
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"net"
 	"time"
 
@@ -159,10 +159,12 @@ func TimeToBytes(t time.Time) []byte {
 	return b
 }
 
+var ErrTooShort = errors.New("too short")
+
 // BytesToTime converst a []byte into a time.Time
 func BytesToTime(b []byte) (time.Time, error) {
 	if len(b) < TimeSliceLength {
-		return time.Time{}, fmt.Errorf("too short")
+		return time.Time{}, ErrTooShort
 	}
 	return time.Unix(0, int64(binary.LittleEndian.Uint64(b[:TimeSliceLength]))), nil
 }

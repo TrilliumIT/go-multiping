@@ -103,18 +103,18 @@ func (s *Socket) drain(
 // or it times out, at which point it will be handled. The handled object
 // will be the same as the sent ping but with the additional information from
 // having been recieved.
-func (s *Socket) SendPing(p *ping.Ping) error {
+func (s *Socket) SendPing(p *ping.Ping) {
 	conn, em, tm, _, _ := s.getConnMaps(p.Dst.IP)
 	sm, ok, _ := em.Get(p.Dst.IP, p.ID)
 	if !ok {
-		return endpointmap.ErrDoesNotExist
+		return
 	}
 
 	var sl int
 	sl = sm.Add(p)
 	if sl == 0 {
 		// Sending was closed
-		return nil
+		return
 	}
 	dst, id, seq, to := p.Dst.IP, p.ID, p.Seq, p.TimeOut
 	if to > 0 {
@@ -122,14 +122,15 @@ func (s *Socket) SendPing(p *ping.Ping) error {
 	}
 	tot, err := conn.Send(p)
 	if err != nil {
-		_, _, done, _ := sm.Pop(seq)
-		done()
 		tm.Del(dst, id, seq)
-		return err
+		if rp, _, err2 := sm.Pop(seq); err2 == nil {
+			sm.Handle(rp, err)
+		}
+		return
 	}
 	if to > 0 {
 		// update timeout with accurate timeout time
 		tm.Update(dst, id, seq, tot)
 	}
-	return nil
+	return
 }
