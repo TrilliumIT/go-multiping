@@ -9,10 +9,10 @@ import (
 	"os/signal"
 	"runtime/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping"
-	"github.com/TrilliumIT/go-multiping/pinger"
 
 	"github.com/pkg/profile"
 )
@@ -42,13 +42,11 @@ func main() {
 	timeout := flag.Duration("t", time.Second, "")
 	interval := flag.Duration("i", time.Second, "")
 	count := flag.Int("c", 0, "")
-	connWorkers := flag.Int("cw", -1, "")
-	connBuffer := flag.Int("cb", 0, "")
-	workers := flag.Int("w", -1, "")
-	buffer := flag.Int("b", 0, "")
-	reResolve := flag.Bool("r", false, "")
-	randDelay := flag.Bool("d", false, "")
+	workers := flag.Int("w", 1, "")
+	reResolve := flag.Int("r", 1, "")
+	//randDelay := flag.Bool("d", false, "")
 	manual := flag.Bool("m", false, "")
+	flood := flag.Bool("f", false, "")
 	quiet := flag.Bool("q", false, "")
 	flag.Usage = func() {
 		fmt.Print(usage)
@@ -60,119 +58,96 @@ func main() {
 		return
 	}
 
-	var recieved, dropped, errored uint64
-	var clock sync.Mutex
+	var recieved, dropped, errored int64
 
-	handle := func(ctx context.Context, pkt *ping.Ping, err error) {
-		clock.Lock()
-		defer clock.Unlock()
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
+	handle := func(pkt *ping.Ping, err error) {
 		if err == nil {
-			recieved++
-			fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID)
-			return
-		}
-
-		dropped++
-		if err == pinger.ErrTimedOut {
-			fmt.Printf("Packet timed out from %v seq: %v id: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID)
-			return
-		}
-
-		fmt.Printf("Packet errored from %v seq: %v id: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, err)
-	}
-	if *quiet {
-		handle = func(ctx context.Context, pkt *ping.Ping, err error) {
-			select {
-			case <-ctx.Done():
-				clock.Unlock()
-				return
-			default:
-				clock.Lock()
-				if err == nil {
-					recieved++
-					clock.Unlock()
-					return
-				}
-				dropped++
-				clock.Unlock()
+			atomic.AddInt64(&recieved, 1)
+			if !*quiet {
+				fmt.Printf("%v bytes from %v rtt: %v ttl: %v seq: %v id: %v count: %v\n", pkt.Len, pkt.Src.String(), pkt.RTT(), pkt.TTL, pkt.Seq, pkt.ID, pkt.Count)
 			}
+			return
+		}
+
+		if err == ping.ErrTimedOut {
+			atomic.AddInt64(&dropped, 1)
+			if !*quiet {
+				fmt.Printf("Packet timed out from %v seq: %v id: %v count: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count)
+			}
+			return
+		}
+
+		atomic.AddInt64(&errored, 1)
+		if !*quiet {
+			fmt.Printf("Packet errored from %v seq: %v id: %v count: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count, err)
 		}
 	}
 
-	pinger.DefaultConn().SetWorkers(*connWorkers)
-	pinger.DefaultConn().SetBuffer(*connBuffer)
-	conf := pinger.DefaultPingConf()
-	conf.RetryOnResolveError = *reResolve
-	if *reResolve {
-		conf.ReResolveEvery = 1
-	}
-	conf.Interval = *interval
-	conf.Timeout = *timeout
-	conf.Count = *count
-	conf.RandDelay = *randDelay
-	conf.RetryOnSendError = true
-	conf.Workers = *workers
-	conf.Buffer = *buffer
+	ping.DefaultSocket().SetWorkers(*workers)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sends := []func(){}
-	var wg sync.WaitGroup
-	for _, h := range flag.Args() {
-		host := h
-		var run func() error
-		var send func()
-		if *manual {
-			run, send = pinger.NewPinger(ctx, host, handle, conf)
-			sends = append(sends, send)
-		} else {
-			run = func() error { return pinger.PingWithContext(ctx, host, handle, conf) }
-		}
-		wg.Add(1)
-		go func(run func() error) {
-			defer wg.Done()
-			err := run()
-			if err != nil {
-				panic(err)
-			}
-		}(run)
-	}
-
-	if *manual {
-		go func() {
-			fmt.Println("Press 'Enter' to send pings...")
-			for {
-				_, err := bufio.NewReader(os.Stdin).ReadBytes('\n')
-				if err != nil {
-					panic(err)
-				}
-				for _, s := range sends {
-					s()
-				}
-			}
-		}()
-	}
-
+	closes := []func() error{}
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
 		cancel()
 		go func() {
-			time.Sleep(5 * time.Second)
+			time.Sleep(10 * time.Second)
 			err := pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 			panic(err)
 		}()
+		for _, cl := range closes {
+			if err := cl(); err != nil {
+				panic(err)
+			}
+		}
 	}()
 
-	wg.Wait()
-	clock.Lock()
-	fmt.Printf("%v recieved, %v dropped, %v errored\n", recieved, dropped, errored)
-	clock.Unlock()
+	var wg sync.WaitGroup
+	for _, host := range flag.Args() {
+		switch {
+		case *manual:
+			fmt.Println("Setting up manual")
+			hc := ping.NewHostConn(host, *reResolve, handle, *timeout)
+			sends = append(sends, hc.SendPing)
+			closes = append(closes, hc.Close)
+		case *flood:
+			wg.Add(1)
+			go func(host string) {
+				err := ping.HostFlood(ctx, host, *reResolve, handle, *count, *timeout)
+				if err != nil {
+					panic(err)
+				}
+				wg.Done()
+			}(host)
+		default:
+			wg.Add(1)
+			go func(host string) {
+				err := ping.HostInterval(ctx, host, *reResolve, handle, *count, *interval, *timeout)
+				if err != nil {
+					panic(err)
+				}
+				wg.Done()
+			}(host)
+		}
+	}
 
+	if *manual {
+		fmt.Println("Press 'Enter' to send pings...")
+		for {
+			_, err := bufio.NewReader(os.Stdin).ReadBytes('\n')
+			if err != nil {
+				panic(err)
+			}
+			for _, s := range sends {
+				s()
+			}
+		}
+	}
+
+	wg.Wait()
+	fmt.Printf("%v recieved, %v dropped, %v errored\n", atomic.LoadInt64(&recieved), atomic.LoadInt64(&dropped), atomic.LoadInt64(&errored))
 }
