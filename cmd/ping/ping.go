@@ -78,7 +78,7 @@ func main() {
 		}
 
 		if !*quiet {
-			fmt.Printf("Packet errored from %v seq: %v id: %v err: %v count: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count, err)
+			fmt.Printf("Packet errored from %v seq: %v id: %v count: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count, err)
 		}
 	}
 
