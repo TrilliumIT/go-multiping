@@ -9,7 +9,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )
 
-// IPConn holds a connection to a destination
+// IPConn holds a connection to a destination ip address
 type IPConn struct {
 	count int64
 	ipc   *ipConn
@@ -46,9 +46,9 @@ func (c *IPConn) sendPing(p *ping.Ping, err error) {
 	c.ipc.sendPing(p)
 }
 
-// SendPing sends a ping, it returns the count
-// Errors sending will be sent to the handler
-// returns the count of the sent packet
+// SendPing sends a ping.
+//
+// Errors sending will be sent to the handler.
 func (c *IPConn) SendPing() {
 	c.sendPing(c.getNextPing())
 }
@@ -63,13 +63,15 @@ func (c *IPConn) Drain() {
 	c.ipc.drain()
 }
 
-// IPOnce pings dst once. Do not do this in a loop, use interval or IPConn.SendPing instead.
+// IPOnce performs IPOnce on the default socket.
 func IPOnce(dst *net.IPAddr, timeout time.Duration) (*Ping, error) {
 	return DefaultSocket().IPOnce(dst, timeout)
 }
 
 // IPOnce sends a single echo request and returns, it blocks until a reply is recieved or the ping times out
+//
 // Zero is no timeout and IPOnce will block forever if a reply is never recieved
+//
 // It is not recommended to use IPOnce in a loop, use Interval, or create a Conn and call SendPing() in a loop
 func (s *Socket) IPOnce(dst *net.IPAddr, timeout time.Duration) (*Ping, error) {
 	sendGet := func(h HandleFunc) (func(), func() error, error) {

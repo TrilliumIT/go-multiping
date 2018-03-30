@@ -18,6 +18,7 @@ type ipConn struct {
 }
 
 // ErrNoIDs is returned when there are no icmp ids left to use
+//
 // Either you are trying to ping the same host with more than 2^16 connections
 // or you are on windows and are running more than 2^16 connections total
 var ErrNoIDs = socket.ErrNoIDs

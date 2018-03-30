@@ -11,6 +11,7 @@ import (
 )
 
 // HostConn is an ICMP connection based on hostname
+//
 // Pings run from a HostConn can be configured to periodically re-resolve
 type HostConn struct {
 	s              *Socket
@@ -112,13 +113,15 @@ func (h *HostConn) Drain() {
 	h.drainWg.Wait()
 }
 
-// HostOnce pings a host once. This is very inefficient to run in a loop, use interval or h.SendPing instead.
+// HostOnce performs HostOnce on the default socket.
 func HostOnce(host string, timeout time.Duration) (*Ping, error) {
 	return DefaultSocket().HostOnce(host, timeout)
 }
 
 // HostOnce sends a single echo request and returns, it blocks until a reply is recieved or the ping times out
+//
 // Zero is no timeout and IPOnce will block forever if a reply is never recieved
+//
 // It is not recommended to use IPOnce in a loop, use Interval, or create a Conn and call SendPing() in a loop
 func (s *Socket) HostOnce(host string, timeout time.Duration) (*Ping, error) {
 	sendGet := func(hdl HandleFunc) (func(), func() error, error) {
@@ -155,7 +158,7 @@ func HostFlood(ctx context.Context, host string, reResolveEvery int, handler Han
 	return DefaultSocket().HostFlood(ctx, host, reResolveEvery, handler, count, timeout)
 }
 
-// HostFlood works like HostInterval, but instead of sending on an interval, the next ping is sent as soon as the previous ping is processed.
+// HostFlood works like HostInterval, but instead of sending on an interval, the next ping is sent as soon as the previous ping is handled.
 func (s *Socket) HostFlood(ctx context.Context, host string, reResolveEvery int, handler HandleFunc, count int, timeout time.Duration) error {
 	fC := make(chan struct{})
 	floodHander := func(p *Ping, err error) {

@@ -4,7 +4,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )
 
-// HandleFunc is a function to handle responses
+// HandleFunc is a function to handle responses and errors
 type HandleFunc func(*Ping, error)
 
 func iHandle(handle HandleFunc) func(*ping.Ping, error) {
