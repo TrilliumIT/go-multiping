@@ -1,3 +1,4 @@
+// Package ping provides an api for efficiently pinging lots of hosts using ICMP echos.
 package ping
 
 import (
