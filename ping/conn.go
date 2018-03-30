@@ -12,7 +12,7 @@ import (
 type ipConn struct {
 	s       *Socket
 	dst     *net.IPAddr
-	id      ping.Id
+	id      ping.ID
 	timeout time.Duration
 	handle  func(*ping.Ping, error)
 }

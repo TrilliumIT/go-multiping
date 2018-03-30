@@ -32,63 +32,62 @@ func (m *Map) Handle(p *ping.Ping, err error) {
 
 var ErrDoesNotExist = errors.New("does not exist")
 
-func (s *Map) Add(p *ping.Ping) (length int) {
+func (m *Map) Add(p *ping.Ping) (length int) {
 	var idx ping.Seq
-	s.l.Lock()
+	m.l.Lock()
 	for {
-		if len(s.m) >= 1<<16 {
-			s.fullWaiting = true
-			s.l.Unlock()
-			_, open := <-s.unfullNotify
+		if len(m.m) >= 1<<16 {
+			m.fullWaiting = true
+			m.l.Unlock()
+			_, open := <-m.unfullNotify
 			if !open {
 				return 0
 			}
-			s.l.Lock()
+			m.l.Lock()
 			continue
 		}
-		idx = ping.Seq(p.Count + s.seqOffset)
-		_, ok := s.m[idx]
+		idx = ping.Seq(p.Count + m.seqOffset)
+		_, ok := m.m[idx]
 		if ok {
-			s.seqOffset++
+			m.seqOffset++
 			continue
 		}
 		p.Seq = idx
-		s.m[idx] = p
-		length = len(s.m)
-		s.wg.Add(1) // wg.done is called after handler is run, so handler must be run for every pop
+		m.m[idx] = p
+		length = len(m.m)
+		m.wg.Add(1) // wg.done is called after handler is run, so handler must be run for every pop
 		break
 	}
-	s.l.Unlock()
+	m.l.Unlock()
 	return length
 }
 
-func (s *Map) Pop(seq ping.Seq) (*ping.Ping, int, error) {
+func (m *Map) Pop(seq ping.Seq) (*ping.Ping, int, error) {
 	idx := seq
 	var l int
 	var err error
-	s.l.Lock()
-	p, ok := s.m[idx]
+	m.l.Lock()
+	p, ok := m.m[idx]
 	if !ok {
 		err = ErrDoesNotExist
 	}
-	delete(s.m, idx)
-	l = len(s.m)
-	if s.fullWaiting && l < 1<<16 {
-		s.fullWaiting = false
-		s.unfullNotify <- struct{}{}
+	delete(m.m, idx)
+	l = len(m.m)
+	if m.fullWaiting && l < 1<<16 {
+		m.fullWaiting = false
+		m.unfullNotify <- struct{}{}
 	}
-	s.l.Unlock()
+	m.l.Unlock()
 	return p, l, err
 }
 
-func (s *Map) Close() {
-	s.l.Lock()
-	s.fullWaiting = false
-	close(s.unfullNotify)
-	s.l.Unlock()
+func (m *Map) Close() {
+	m.l.Lock()
+	m.fullWaiting = false
+	close(m.unfullNotify)
+	m.l.Unlock()
 }
 
-// TODO // Drain gets called while handle is still running, causes drain to return while handle is processing and dropped packet!
-func (s *Map) Drain() {
-	s.wg.Wait()
+func (m *Map) Drain() {
+	m.wg.Wait()
 }

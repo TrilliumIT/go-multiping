@@ -23,7 +23,7 @@ const (
 )
 
 type Seq uint16
-type Id uint16
+type ID uint16
 
 // Ping is an ICMP packet that has been received
 type Ping struct {
@@ -40,7 +40,7 @@ type Ping struct {
 	// Count is the ICMP count
 	Count int
 	// ID is the ICMP ID
-	ID Id
+	ID ID
 	// Seq is the ICMP Sequence
 	Seq Seq
 	// Sent is the time the echo was sent

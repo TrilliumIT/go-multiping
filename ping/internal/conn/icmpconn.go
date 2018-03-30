@@ -25,7 +25,7 @@ type icmpConn struct {
 	c *icmp.PacketConn
 }
 
-func (c *icmpConn) writeTo(b []byte, dst *net.IPAddr) (int, error) {
+func (c *icmpConn) writeTo(b []byte, dst *net.IPAddr) (int, error) { // nolint: interfacer
 	return c.c.WriteTo(b, dst)
 }
 
@@ -68,7 +68,7 @@ func parseEcho(
 	payload []byte,
 	rlen int,
 ) (
-	id ping.Id,
+	id ping.ID,
 	seq ping.Seq,
 	sent time.Time,
 	err error,
@@ -94,7 +94,7 @@ func parseEcho(
 		return
 	}
 
-	id = ping.Id(e.ID)
+	id = ping.ID(e.ID)
 	seq = ping.Seq(e.Seq)
 
 	sent, err = ping.BytesToTime(e.Data)

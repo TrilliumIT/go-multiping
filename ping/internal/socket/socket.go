@@ -61,8 +61,8 @@ func handle(
 	if !ok {
 		return
 	}
-	sp, _, err := sm.Pop(rp.Seq)
-	if err == seqmap.ErrDoesNotExist {
+	sp, _, popErr := sm.Pop(rp.Seq)
+	if popErr == seqmap.ErrDoesNotExist {
 		return
 	}
 	sp.UpdateFrom(rp)

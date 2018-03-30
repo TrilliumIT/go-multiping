@@ -17,7 +17,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func (s *Socket) Add(dst *net.IPAddr, h func(*ping.Ping, error)) (ping.Id, error) {
+func (s *Socket) Add(dst *net.IPAddr, h func(*ping.Ping, error)) (ping.ID, error) {
 	conn, em, tm, _, setCancel := s.getConnMaps(dst.IP)
 	return s.add(conn, em, tm, setCancel, dst, h)
 }
@@ -28,15 +28,15 @@ var ErrTimedOut = errors.New("timed out")
 func (s *Socket) add(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, setCancel func(func()),
 	dst *net.IPAddr, h func(*ping.Ping, error),
-) (ping.Id, error) {
+) (ping.ID, error) {
 	var id int
 	var sl int
 	var err error
 	s.l.Lock()
 	defer s.l.Unlock()
-	startId := rand.Intn(1<<16 - 1)
-	for id = startId; id < startId+1<<16-1; id++ {
-		_, sl, err = em.Add(dst.IP, ping.Id(id), h)
+	startID := rand.Intn(1<<16 - 1)
+	for id = startID; id < startID+1<<16-1; id++ {
+		_, sl, err = em.Add(dst.IP, ping.ID(id), h)
 		if err == endpointmap.ErrAlreadyExists {
 			continue
 		}
@@ -52,19 +52,19 @@ func (s *Socket) add(
 				}()
 			}
 		}
-		return ping.Id(id), err
+		return ping.ID(id), err
 	}
 	return 0, ErrNoIDs
 }
 
-func (s *Socket) Del(dst net.IP, id ping.Id) error {
+func (s *Socket) Del(dst net.IP, id ping.ID) error {
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
 	return s.del(conn, em, tm, cancel, dst, id)
 }
 
 func (s *Socket) del(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
-	dst net.IP, id ping.Id) error {
+	dst net.IP, id ping.ID) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 	sm, sl, err := em.Pop(dst, id)
@@ -79,14 +79,14 @@ func (s *Socket) del(
 	return err
 }
 
-func (s *Socket) Drain(dst net.IP, id ping.Id) {
+func (s *Socket) Drain(dst net.IP, id ping.ID) {
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
 	s.drain(conn, em, tm, cancel, dst, id)
 }
 
 func (s *Socket) drain(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
-	dst net.IP, id ping.Id) {
+	dst net.IP, id ping.ID) {
 	s.l.Lock()
 	sm, _, _ := em.Get(dst, id)
 	if sm == nil {
@@ -95,7 +95,6 @@ func (s *Socket) drain(
 	}
 	s.l.Unlock()
 	sm.Drain()
-	return
 }
 
 // SendPing sends the ping, in the process it sets the sent time
@@ -110,8 +109,7 @@ func (s *Socket) SendPing(p *ping.Ping) {
 		return
 	}
 
-	var sl int
-	sl = sm.Add(p)
+	sl := sm.Add(p)
 	if sl == 0 {
 		// Sending was closed
 		return
@@ -132,5 +130,4 @@ func (s *Socket) SendPing(p *ping.Ping) {
 		// update timeout with accurate timeout time
 		tm.Update(dst, id, seq, tot)
 	}
-	return
 }

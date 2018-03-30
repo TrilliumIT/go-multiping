@@ -14,16 +14,16 @@ type Map struct {
 	to       tMap
 	t        *time.Timer
 	nextIP   net.IP
-	nextID   ping.Id
+	nextID   ping.ID
 	nextSeq  ping.Seq
 	nextTime time.Time
 }
 
 type tMap interface {
-	add(net.IP, ping.Id, ping.Seq, time.Time)
-	del(net.IP, ping.Id, ping.Seq)
-	exists(net.IP, ping.Id, ping.Seq) bool
-	getNext() (net.IP, ping.Id, ping.Seq, time.Time)
+	add(net.IP, ping.ID, ping.Seq, time.Time)
+	del(net.IP, ping.ID, ping.Seq)
+	exists(net.IP, ping.ID, ping.Seq) bool
+	getNext() (net.IP, ping.ID, ping.Seq, time.Time)
 }
 
 func New(proto int) *Map {
@@ -47,14 +47,14 @@ func New(proto int) *Map {
 	return m
 }
 
-func (m *Map) Add(ip net.IP, id ping.Id, seq ping.Seq, t time.Time) {
+func (m *Map) Add(ip net.IP, id ping.ID, seq ping.Seq, t time.Time) {
 	m.l.Lock()
 	m.to.add(ip, id, seq, t)
 	m.setNext()
 	m.l.Unlock()
 }
 
-func (m *Map) Update(ip net.IP, id ping.Id, seq ping.Seq, t time.Time) {
+func (m *Map) Update(ip net.IP, id ping.ID, seq ping.Seq, t time.Time) {
 	m.l.Lock()
 	if m.to.exists(ip, id, seq) {
 		m.to.add(ip, id, seq, t)
@@ -63,7 +63,7 @@ func (m *Map) Update(ip net.IP, id ping.Id, seq ping.Seq, t time.Time) {
 	m.l.Unlock()
 }
 
-func (m *Map) Del(ip net.IP, id ping.Id, seq ping.Seq) {
+func (m *Map) Del(ip net.IP, id ping.ID, seq ping.Seq) {
 	m.l.Lock()
 	m.to.del(ip, id, seq)
 	m.setNext()
@@ -85,7 +85,7 @@ func (m *Map) setNext() {
 	}
 }
 
-func (m *Map) Next(ctx context.Context) (ip net.IP, id ping.Id, seq ping.Seq, t time.Time) {
+func (m *Map) Next(ctx context.Context) (ip net.IP, id ping.ID, seq ping.Seq, t time.Time) {
 	var tt time.Time
 	for {
 		select {
