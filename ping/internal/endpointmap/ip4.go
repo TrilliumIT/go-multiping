@@ -8,7 +8,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/seqmap"
 )
 
-func toIP4Idx(ip net.IP, id ping.ID) [6]byte {
+func iToIP4Idx(ip net.IP, id ping.ID) [6]byte {
 	var r [6]byte
 	copy(r[0:4], ip.To4())
 	binary.LittleEndian.PutUint16(r[4:], uint16(id))
