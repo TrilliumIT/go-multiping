@@ -58,8 +58,13 @@ func toPing(
 	return p
 }
 
+// ErrTooShort is returned if the icmp message is too short
 var ErrTooShort = errors.New("too short")
+
+// ErrWrongType is returned if the packet is not an icmp packet
 var ErrWrongType = errors.New("wrong type")
+
+// ErrNotEcho is returned if the icmp message is not an echo
 var ErrNotEcho = errors.New("not echo")
 
 func parseEcho(

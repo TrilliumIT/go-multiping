@@ -11,6 +11,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/timeoutmap"
 )
 
+// Socket holds a raw socket connection, one for ipv4 and one for ipv6
 type Socket struct {
 	Workers int
 	l       sync.RWMutex
@@ -26,6 +27,7 @@ type Socket struct {
 	v6tmCancel func()
 }
 
+// New creates a new socket
 func New() *Socket {
 	s := &Socket{
 		Workers: 1,

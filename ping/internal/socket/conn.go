@@ -17,12 +17,16 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+// Add adds an ip address to the socket, listening for ICMP echos to that IP.
 func (s *Socket) Add(dst *net.IPAddr, h func(*ping.Ping, error)) (ping.ID, error) {
 	conn, em, tm, _, setCancel := s.getConnMaps(dst.IP)
 	return s.add(conn, em, tm, setCancel, dst, h)
 }
 
+// ErrNoIDs is returned if there are no more avaliable ICMP IDs.
 var ErrNoIDs = errors.New("no avaliable icmp IDs")
+
+// ErrTimedOut is returned when a packet times out.
 var ErrTimedOut = errors.New("timed out")
 
 func (s *Socket) add(
@@ -57,6 +61,7 @@ func (s *Socket) add(
 	return 0, ErrNoIDs
 }
 
+// Del removes an IP from the socket, so returned echos will no longer be recieved.
 func (s *Socket) Del(dst net.IP, id ping.ID) error {
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
 	return s.del(conn, em, tm, cancel, dst, id)
@@ -79,6 +84,7 @@ func (s *Socket) del(
 	return err
 }
 
+// Drain blocks until all pending pings to dst have been handled
 func (s *Socket) Drain(dst net.IP, id ping.ID) {
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
 	s.drain(conn, em, tm, cancel, dst, id)

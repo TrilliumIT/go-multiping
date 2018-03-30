@@ -12,6 +12,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )
 
+// Conn holds a connection, either ipv4 or ipv6
 type Conn struct {
 	l       sync.RWMutex
 	cancel  func()
@@ -31,6 +32,7 @@ type conn interface {
 	close() error
 }
 
+// New returns a new Conn
 func New(proto int, h func(*ping.Ping, error)) *Conn {
 	return &Conn{
 		cancel:  func() {},
@@ -39,6 +41,7 @@ func New(proto int, h func(*ping.Ping, error)) *Conn {
 	}
 }
 
+// Run runs the workers for the Conn
 func (c *Conn) Run(workers int) error {
 	c.l.Lock()
 	if c.conn != nil {
@@ -60,6 +63,7 @@ func (c *Conn) Run(workers int) error {
 	return nil
 }
 
+// Stop stops the Conn
 func (c *Conn) Stop() error {
 	c.l.Lock()
 	c.cancel()
@@ -73,8 +77,10 @@ func (c *Conn) Stop() error {
 	return nil
 }
 
+// ErrNotRunning is returned if a ping is sent through a connection that is not running
 var ErrNotRunning = errors.New("not running")
 
+// Send sends a ping through a Conn
 func (c *Conn) Send(p *ping.Ping) (time.Time, error) {
 	c.l.RLock()
 	if c.conn == nil {

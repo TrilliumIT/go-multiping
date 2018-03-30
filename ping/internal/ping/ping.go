@@ -22,7 +22,10 @@ const (
 	ProtocolIPv6ICMP = 58 // ICMP for IPv6
 )
 
+// Seq is an ICMP Sequence
 type Seq uint16
+
+// ID is an ICMP ID
 type ID uint16
 
 // Ping is an ICMP packet that has been received
@@ -159,6 +162,7 @@ func TimeToBytes(t time.Time) []byte {
 	return b
 }
 
+// ErrTooShort is returned if an echo body holding the timeslice is too short
 var ErrTooShort = errors.New("too short")
 
 // BytesToTime converst a []byte into a time.Time

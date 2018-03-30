@@ -9,11 +9,13 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/seqmap"
 )
 
+// Map holds an endpoint map mapping endpoints to sequence maps
 type Map struct {
 	l sync.RWMutex
 	m iMap
 }
 
+// New creates a new endpoint map
 func New(proto int) *Map {
 	m := &Map{}
 	switch proto {
@@ -34,10 +36,13 @@ type iMap interface {
 	length() int
 }
 
+// ErrAlreadyExists is returned if you attempt to add an endpoint to the map that already exists.
 var ErrAlreadyExists = errors.New("already exists")
+
+// ErrDoesNotExist is returned if you try to get an endpoint that does not exist
 var ErrDoesNotExist = errors.New("does not exist")
 
-// returns the length of the map after modification
+// Add returns the length of the map after modification
 func (m *Map) Add(ip net.IP, id ping.ID, h func(*ping.Ping, error)) (sm *seqmap.Map, l int, err error) {
 	var ok bool
 	m.l.Lock()
@@ -53,6 +58,7 @@ func (m *Map) Add(ip net.IP, id ping.ID, h func(*ping.Ping, error)) (sm *seqmap.
 	return sm, l, err
 }
 
+// Pop removes and returns a sequence map
 func (m *Map) Pop(ip net.IP, id ping.ID) (sm *seqmap.Map, l int, err error) {
 	var ok bool
 	m.l.Lock()
@@ -66,6 +72,7 @@ func (m *Map) Pop(ip net.IP, id ping.ID) (sm *seqmap.Map, l int, err error) {
 	return sm, l, err
 }
 
+// Get gets a sequence map
 func (m *Map) Get(ip net.IP, id ping.ID) (sm *seqmap.Map, ok bool, length int) {
 	m.l.RLock()
 	sm, ok = m.m.get(ip, id)

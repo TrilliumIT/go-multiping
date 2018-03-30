@@ -9,6 +9,7 @@ import (
 	"github.com/TrilliumIT/go-multiping/ping/internal/ping"
 )
 
+// Map holds a timeout map, a map of when different pings time out
 type Map struct {
 	l        sync.Mutex
 	to       tMap
@@ -26,6 +27,7 @@ type tMap interface {
 	getNext() (net.IP, ping.ID, ping.Seq, time.Time)
 }
 
+// New creates a new timeout map
 func New(proto int) *Map {
 	m := &Map{
 		t: time.NewTimer(time.Hour),
@@ -47,6 +49,7 @@ func New(proto int) *Map {
 	return m
 }
 
+// Add adds an entry to the timeout map
 func (m *Map) Add(ip net.IP, id ping.ID, seq ping.Seq, t time.Time) {
 	m.l.Lock()
 	m.to.add(ip, id, seq, t)
@@ -54,6 +57,9 @@ func (m *Map) Add(ip net.IP, id ping.ID, seq ping.Seq, t time.Time) {
 	m.l.Unlock()
 }
 
+// Update updates the timeout on an existing entry
+// It does nothing if the entry does not exist, because it may have already
+// been deleted by being recieved
 func (m *Map) Update(ip net.IP, id ping.ID, seq ping.Seq, t time.Time) {
 	m.l.Lock()
 	if m.to.exists(ip, id, seq) {
@@ -63,6 +69,8 @@ func (m *Map) Update(ip net.IP, id ping.ID, seq ping.Seq, t time.Time) {
 	m.l.Unlock()
 }
 
+// Del deletes an entry from the timeout map, this should be called when
+// the ping is received
 func (m *Map) Del(ip net.IP, id ping.ID, seq ping.Seq) {
 	m.l.Lock()
 	m.to.del(ip, id, seq)
@@ -85,6 +93,7 @@ func (m *Map) setNext() {
 	}
 }
 
+// Next blocks until the next packet times out, then returns the information for that packet.
 func (m *Map) Next(ctx context.Context) (ip net.IP, id ping.ID, seq ping.Seq, t time.Time) {
 	var tt time.Time
 	for {
