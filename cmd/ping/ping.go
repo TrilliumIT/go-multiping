@@ -7,14 +7,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/TrilliumIT/go-multiping/ping"
-
-	"github.com/pkg/profile"
 )
 
 var usage = `
@@ -38,7 +35,6 @@ Examples:
 `
 
 func main() {
-	defer profile.Start().Stop()
 	timeout := flag.Duration("t", time.Second, "")
 	interval := flag.Duration("i", time.Second, "")
 	count := flag.Int("c", 0, "")
@@ -94,11 +90,6 @@ func main() {
 	go func() {
 		<-c
 		cancel()
-		go func() {
-			time.Sleep(10 * time.Second)
-			err := pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
-			panic(err)
-		}()
 		for _, cl := range closes {
 			if err := cl(); err != nil {
 				panic(err)
