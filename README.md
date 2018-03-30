@@ -15,4 +15,4 @@ more details or look at the example ping command implementation in
 
 [![Build Status](https://travis-ci.org/TrilliumIT/go-multiping.svg?branch=master)](https://travis-ci.org/TrilliumIT/go-multiping)
 
-[![Coverage Status](https://coveralls.io/repos/github/TrilliumIT/go-multiping/badge.svg?branch=master)](https://coveralls.io/github/TrilliumIT/go-multiping?branch=master)
+[Coverage Status](https://coveralls.io/github/TrilliumIT/go-multiping?branch=master)
