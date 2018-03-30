@@ -69,14 +69,15 @@ func main() {
 			return
 		}
 
-		atomic.AddInt64(&dropped, 1)
 		if err == ping.ErrTimedOut {
+			atomic.AddInt64(&dropped, 1)
 			if !*quiet {
 				fmt.Printf("Packet timed out from %v seq: %v id: %v count: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count)
 			}
 			return
 		}
 
+		atomic.AddInt64(&errored, 1)
 		if !*quiet {
 			fmt.Printf("Packet errored from %v seq: %v id: %v count: %v err: %v\n", pkt.Dst.String(), pkt.Seq, pkt.ID, pkt.Count, err)
 		}

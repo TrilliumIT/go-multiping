@@ -1,6 +1,7 @@
 package ping
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync/atomic"
@@ -43,4 +44,28 @@ func TestIPDrain(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		t.Run(fmt.Sprintf("%v", i), testIPDrain)
 	}
+}
+
+func Test10kDeadLock(t *testing.T) {
+	assert := assert.New(t)
+	var received int64
+	h := func(p *Ping, err error) {
+		atomic.AddInt64(&received, 1)
+		assert.NoError(err)
+		assert.NotNil(p)
+	}
+	dst, err := net.ResolveIPAddr("ip", "127.0.0.1")
+	assert.NoError(err)
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(100*time.Second, func() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		assert.FailNow("interval took too long")
+		cancel()
+	})
+	IPInterval(ctx, dst, h, 10000, 0, time.Second)
+	cancel()
 }
