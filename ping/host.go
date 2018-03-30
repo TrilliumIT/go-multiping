@@ -57,6 +57,7 @@ func (h *HostConn) getNextPing() (*ping.Ping, error) {
 		dst, err := net.ResolveIPAddr("ip", h.host)
 		changed := dst == nil || h.ipc == nil || h.ipc.dst == nil || !dst.IP.Equal(h.ipc.dst.IP)
 		if err != nil {
+			p.Sent = time.Now()
 			return p, err
 		}
 		if changed {
@@ -70,10 +71,12 @@ func (h *HostConn) getNextPing() (*ping.Ping, error) {
 			}
 			h.ipc, err = h.s.newipConn(dst, h.handle, h.timeout)
 			if err != nil {
+				p.Sent = time.Now()
 				return p, err
 			}
 		}
 	}
+	p.Sent = time.Now()
 	return p, nil
 }
 
