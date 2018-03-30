@@ -3,9 +3,6 @@
 package conn
 
 import (
-	"net"
-	"time"
-
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 )
@@ -33,42 +30,4 @@ func setupV6Conn(c *ipv6.PacketConn) error {
 	f.Accept(ipv6.ICMPTypeEchoReply)
 	err = c.SetICMPFilter(&f)
 	return err
-}
-
-func readV4(c *ipv4.PacketConn, len int) (
-	payload []byte,
-	srcAddr net.Addr,
-	src, dst net.IP,
-	rlen, ttl int,
-	received time.Time,
-	err error,
-) {
-	payload = make([]byte, len)
-	var cm *ipv4.ControlMessage
-	rlen, cm, srcAddr, err = c.ReadFrom(payload)
-	received = time.Now()
-	if cm == nil {
-		return
-	}
-	src, dst, ttl = cm.Src, cm.Dst, cm.TTL
-	return
-}
-
-func readV6(c *ipv6.PacketConn, len int) (
-	payload []byte,
-	srcAddr net.Addr,
-	src, dst net.IP,
-	rlen, ttl int,
-	received time.Time,
-	err error,
-) {
-	payload = make([]byte, len)
-	var cm *ipv6.ControlMessage
-	rlen, cm, srcAddr, err = c.ReadFrom(payload)
-	received = time.Now()
-	if cm == nil {
-		return
-	}
-	src, dst, ttl = cm.Src, cm.Dst, cm.HopLimit
-	return
 }
