@@ -26,7 +26,6 @@ func readV4(c *ipv4.PacketConn, len int) (
 	err error,
 ) {
 	payload = make([]byte, len)
-	var cm *ipv4.ControlMessage
 	rlen, _, srcAddr, err = c.ReadFrom(payload)
 	received = time.Now()
 	src, dst = net.IPv4zero, net.IPv4zero
@@ -42,7 +41,6 @@ func readV6(c *ipv6.PacketConn, len int) (
 	err error,
 ) {
 	payload = make([]byte, len)
-	var cm *ipv6.ControlMessage
 	rlen, _, srcAddr, err = c.ReadFrom(payload)
 	received = time.Now()
 	src, dst = net.IPv6zero, net.IPv6zero
