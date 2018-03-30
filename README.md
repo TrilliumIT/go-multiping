@@ -1,7 +1,7 @@
 ### Efficiently Ping lots of hosts in go
 
 Multiping is a library for efficiently pinging lots of hosts. No matter how many
-hosts you start pinging a single [Conn](https://godoc.org/github.com/TrilliumIT/go-multiping/pinger#Conn) will only open one raw socket listner (two if you are pinging both IPv4 and IPv6 hosts).
+hosts you start pinging a single [Socket](https://godoc.org/github.com/TrilliumIT/go-multiping/ping#Socket) will only open one raw socket listner (two if you are pinging both IPv4 and IPv6 hosts).
 
 The socket will only be listening as long as you have an active ping running.
 
