@@ -66,6 +66,6 @@ func Test10kDeadLock(t *testing.T) {
 		assert.FailNow("interval took too long")
 		cancel()
 	})
-	IPInterval(ctx, dst, h, 10000, 0, time.Second)
+	assert.NoError(IPInterval(ctx, dst, h, 10000, 0, time.Second))
 	cancel()
 }

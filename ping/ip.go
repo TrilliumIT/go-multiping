@@ -44,7 +44,6 @@ func (c *IPConn) sendPing(p *ping.Ping, err error) {
 		return
 	}
 	c.ipc.sendPing(p)
-	return
 }
 
 // SendPing sends a ping, it returns the count
@@ -54,14 +53,17 @@ func (c *IPConn) SendPing() {
 	c.sendPing(c.getNextPing())
 }
 
+// Close closes an IPConn. SendPing after Close will panic.
 func (c *IPConn) Close() error {
 	return c.ipc.close()
 }
 
+// Drain blocks until all outstanding pings have been handled.
 func (c *IPConn) Drain() {
 	c.ipc.drain()
 }
 
+// IPOnce pings dst once. Do not do this in a loop, use interval or IPConn.SendPing instead.
 func IPOnce(dst *net.IPAddr, timeout time.Duration) (*Ping, error) {
 	return DefaultSocket().IPOnce(dst, timeout)
 }
@@ -77,6 +79,7 @@ func (s *Socket) IPOnce(dst *net.IPAddr, timeout time.Duration) (*Ping, error) {
 	return runOnce(sendGet)
 }
 
+// IPInterval performs IPInterval using the default socket
 func IPInterval(ctx context.Context, dst *net.IPAddr, handler HandleFunc, count int, interval, timeout time.Duration) error {
 	return DefaultSocket().IPInterval(ctx, dst, handler, count, interval, timeout)
 }
@@ -101,6 +104,7 @@ func (s *Socket) IPInterval(ctx context.Context, dst *net.IPAddr, handler Handle
 	return c.Close()
 }
 
+// IPFlood performs IPFlood using the default socket.
 func IPFlood(ctx context.Context, dst *net.IPAddr, handler HandleFunc, count int, timeout time.Duration) error {
 	return DefaultSocket().IPFlood(ctx, dst, handler, count, timeout)
 }

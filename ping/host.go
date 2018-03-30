@@ -83,7 +83,6 @@ func (h *HostConn) sendPing(p *ping.Ping, err error) {
 		return
 	}
 	h.ipc.sendPing(p)
-	return
 }
 
 // SendPing sends a ping
@@ -91,6 +90,7 @@ func (h *HostConn) SendPing() {
 	h.sendPing(h.getNextPing())
 }
 
+// Close closes the host connection. Further attempts to send pings via this connection will panic.
 func (h *HostConn) Close() error {
 	for _, ipc := range h.draining {
 		_ = ipc.close()
@@ -101,6 +101,7 @@ func (h *HostConn) Close() error {
 	return h.ipc.close()
 }
 
+// Drain will block until all pending pings have been handled, either by reply or timeout
 func (h *HostConn) Drain() {
 	if h.ipc != nil {
 		h.ipc.drain()
@@ -108,6 +109,7 @@ func (h *HostConn) Drain() {
 	h.drainWg.Wait()
 }
 
+// HostOnce pings a host once. This is very inefficient to run in a loop, use interval or h.SendPing instead.
 func HostOnce(host string, timeout time.Duration) (*Ping, error) {
 	return DefaultSocket().HostOnce(host, timeout)
 }
@@ -123,6 +125,7 @@ func (s *Socket) HostOnce(host string, timeout time.Duration) (*Ping, error) {
 	return runOnce(sendGet)
 }
 
+// HostInterval performs HostInterval using the default socket.
 func HostInterval(ctx context.Context, host string, reResolveEvery int, handler HandleFunc, count int, interval, timeout time.Duration) error {
 	return DefaultSocket().HostInterval(ctx, host, reResolveEvery, handler, count, interval, timeout)
 }
@@ -144,11 +147,12 @@ func (s *Socket) HostInterval(ctx context.Context, host string, reResolveEvery i
 	return h.Close()
 }
 
+// HostFlood performs HostFlood using the default socket.
 func HostFlood(ctx context.Context, host string, reResolveEvery int, handler HandleFunc, count int, timeout time.Duration) error {
 	return DefaultSocket().HostFlood(ctx, host, reResolveEvery, handler, count, timeout)
 }
 
-// IPFlood continuously sends pings, sending the next ping as soon as the previous one is replied or times out.
+// HostFlood works like HostInterval, but instead of sending on an interval, the next ping is sent as soon as the previous ping is processed.
 func (s *Socket) HostFlood(ctx context.Context, host string, reResolveEvery int, handler HandleFunc, count int, timeout time.Duration) error {
 	fC := make(chan struct{})
 	floodHander := func(p *Ping, err error) {

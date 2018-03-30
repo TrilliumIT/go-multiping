@@ -24,8 +24,17 @@ func runOnce(sendGet func(HandleFunc) (func(), func() error, error)) (*Ping, err
 	}
 	go send()
 	r := <-rCh
-	cClose()
+	_ = cClose()
 	return r.p, r.err
+}
+
+func ctxDone(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+	}
+	return false
 }
 
 func runInterval(ctx context.Context, getPing func() (*ping.Ping, error), sendPing func(*ping.Ping, error), count int, interval time.Duration) {
@@ -42,10 +51,8 @@ func runInterval(ctx context.Context, getPing func() (*ping.Ping, error), sendPi
 	}
 
 	for p, err := getPing(); p.Count < count || count == 0; p, err = getPing() {
-		select {
-		case <-ctx.Done():
+		if ctxDone(ctx) {
 			return
-		default:
 		}
 		sendPing(p, err)
 		select {
@@ -58,10 +65,8 @@ func runInterval(ctx context.Context, getPing func() (*ping.Ping, error), sendPi
 
 func runFlood(ctx context.Context, getPing func() (*ping.Ping, error), sendPing func(*ping.Ping, error), fC <-chan struct{}, count int) {
 	for p, err := getPing(); p.Count < count || count == 0; p, err = getPing() {
-		select {
-		case <-ctx.Done():
+		if ctxDone(ctx) {
 			return
-		default:
 		}
 		sendPing(p, err)
 		select {

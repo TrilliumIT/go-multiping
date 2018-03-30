@@ -12,7 +12,7 @@ import (
 
 func TestNoIDs(t *testing.T) {
 	assert := assert.New(t)
-	conns := make([]*IPConn, 1<<16, 1<<16)
+	conns := make([]*IPConn, 1<<16)
 	assert.Equal(len(conns), 1<<16)
 	ip, err := net.ResolveIPAddr("ip", "127.0.0.1")
 	assert.NoError(err)
@@ -39,7 +39,7 @@ func assertBlocks(t *testing.T, f func(), minD, maxD time.Duration, s string, i 
 	st := time.Now()
 	f()
 	tm.Stop()
-	assert.True(t, time.Now().Sub(st) > minD, "Did not block long enough")
+	assert.True(t, time.Since(st) > minD, "Did not block long enough")
 }
 
 func assertDoesNotBlock(t *testing.T, f func(), maxD time.Duration, s string, i ...interface{}) {

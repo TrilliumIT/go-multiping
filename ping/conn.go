@@ -64,10 +64,10 @@ func (c *ipConn) drain() {
 	c.s.s.Drain(c.dst.IP, c.id)
 }
 
+// ErrNotRunning is returned if a ping is set to a closed connection.
 var ErrNotRunning = conn.ErrNotRunning
 
 func (c *ipConn) sendPing(p *ping.Ping) {
 	p.Dst, p.ID, p.TimeOut = c.dst, c.id, c.timeout
 	c.s.s.SendPing(p)
-	return
 }
