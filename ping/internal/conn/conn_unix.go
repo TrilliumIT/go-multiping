@@ -47,7 +47,9 @@ func readV4(c *ipv4.PacketConn, len int) (
 	var cm *ipv4.ControlMessage
 	rlen, cm, srcAddr, err = c.ReadFrom(payload)
 	received = time.Now()
-	src, dst, ttl = cm.Src, cm.Dst, cm.TTL
+	if cm != nil {
+		src, dst, ttl = cm.Src, cm.Dst, cm.TTL
+	}
 	return
 }
 
@@ -63,6 +65,8 @@ func readV6(c *ipv6.PacketConn, len int) (
 	var cm *ipv6.ControlMessage
 	rlen, cm, srcAddr, err = c.ReadFrom(payload)
 	received = time.Now()
-	src, dst, ttl = cm.Src, cm.Dst, cm.HopLimit
+	if cm != nil {
+		src, dst, ttl = cm.Src, cm.Dst, cm.HopLimit
+	}
 	return
 }
