@@ -19,6 +19,8 @@ func init() {
 
 // Add adds an ip address to the socket, listening for ICMP echos to that IP.
 func (s *Socket) Add(dst *net.IPAddr, h func(*ping.Ping, error)) (ping.ID, error) {
+	s.l.Lock()
+	defer s.l.Unlock()
 	conn, em, tm, _, setCancel := s.getConnMaps(dst.IP)
 	return s.add(conn, em, tm, setCancel, dst, h)
 }
@@ -36,8 +38,6 @@ func (s *Socket) add(
 	var id int
 	var sl int
 	var err error
-	s.l.Lock()
-	defer s.l.Unlock()
 	startID := rand.Intn(1<<16 - 1)
 	for id = startID; id < startID+1<<16-1; id++ {
 		_, sl, err = em.Add(dst.IP, ping.ID(id), h)
@@ -64,6 +64,8 @@ func (s *Socket) add(
 
 // Del removes an IP from the socket, so returned echos will no longer be recieved.
 func (s *Socket) Del(dst net.IP, id ping.ID) error {
+	s.l.Lock()
+	defer s.l.Unlock()
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
 	return s.del(conn, em, tm, cancel, dst, id)
 }
@@ -71,8 +73,6 @@ func (s *Socket) Del(dst net.IP, id ping.ID) error {
 func (s *Socket) del(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
 	dst net.IP, id ping.ID) error {
-	s.l.Lock()
-	defer s.l.Unlock()
 	sm, sl, err := em.Pop(dst, id)
 	if err != nil {
 		return err
@@ -87,20 +87,19 @@ func (s *Socket) del(
 
 // Drain blocks until all pending pings to dst have been handled
 func (s *Socket) Drain(dst net.IP, id ping.ID) {
+	s.l.Lock()
 	conn, em, tm, cancel, _ := s.getConnMaps(dst)
 	s.drain(conn, em, tm, cancel, dst, id)
+	s.l.Unlock()
 }
 
 func (s *Socket) drain(
 	conn *conn.Conn, em *endpointmap.Map, tm *timeoutmap.Map, cancel func(),
 	dst net.IP, id ping.ID) {
-	s.l.Lock()
 	sm, _, _ := em.Get(dst, id)
 	if sm == nil {
-		s.l.Unlock()
 		return
 	}
-	s.l.Unlock()
 	sm.Drain()
 }
 
