@@ -11,12 +11,49 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIPOnce(t *testing.T) {
+func TestIPOnceV4(t *testing.T) {
 	assert := assert.New(t)
 
 	dst, err := net.ResolveIPAddr("ip", "127.0.0.1")
 	assert.NoError(err)
 	assert.NotNil(dst)
+	p, err := IPOnce(dst, time.Second)
+	assert.NoError(err)
+	assert.NotNil(p)
+	assert.WithinDuration(time.Now(), p.Recieved, time.Second)
+	assert.NotZero(p.RTT())
+	assert.NotZero(p.TTL)
+	assert.True(dst.IP.Equal(p.Dst.IP))
+}
+
+func TestIPOnceV6(t *testing.T) {
+	assert := assert.New(t)
+
+	dst, err := net.ResolveIPAddr("ip", "::1")
+	assert.NoError(err)
+	assert.NotNil(dst)
+	p, err := IPOnce(dst, time.Second)
+	assert.NoError(err)
+	assert.NotNil(p)
+	assert.WithinDuration(time.Now(), p.Recieved, time.Second)
+	assert.WithinDuration(p.Sent, p.Recieved, time.Second)
+	assert.NotZero(p.RTT())
+	assert.NotZero(p.TTL)
+	assert.True(dst.IP.Equal(p.Dst.IP))
+}
+
+func TestIPOnceUnreachable(t *testing.T) {
+	assert := assert.New(t)
+	dst, err := net.ResolveIPAddr("ip", "198.51.100.1")
+	assert.NoError(err)
+	p, err := IPOnce(dst, time.Second)
+	assert.Equal(ErrTimedOut, err)
+	assert.NotNil(p)
+	assert.WithinDuration(time.Now(), p.Sent, 2*time.Second)
+	assert.Zero(p.Recieved)
+	assert.Zero(p.RTT())
+	assert.Zero(p.TTL)
+	assert.True(dst.IP.Equal(p.Dst.IP))
 }
 
 func testIPDrain(t *testing.T) {
