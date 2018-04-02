@@ -47,14 +47,15 @@ func (s *Socket) add(
 		if sl == 1 {
 			err = conn.Run(s.Workers)
 			if err != nil {
-				ctx, cancel := context.WithCancel(context.Background())
-				setCancel(cancel)
-				go func() {
-					for ip, id, seq, _ := tm.Next(ctx); ip != nil; ip, id, seq, _ = tm.Next(ctx) {
-						handle(em, tm, &ping.Ping{Dst: &net.IPAddr{IP: ip}, ID: id, Seq: seq}, ErrTimedOut)
-					}
-				}()
+				return 0, err
 			}
+			ctx, cancel := context.WithCancel(context.Background())
+			setCancel(cancel)
+			go func() {
+				for ip, id, seq, _ := tm.Next(ctx); ip != nil; ip, id, seq, _ = tm.Next(ctx) {
+					handle(em, tm, &ping.Ping{Dst: &net.IPAddr{IP: ip}, ID: id, Seq: seq}, ErrTimedOut)
+				}
+			}()
 		}
 		return ping.ID(id), err
 	}
