@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -53,6 +54,14 @@ func main() {
 		flag.Usage()
 		return
 	}
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt)
+	go func() {
+		<-sigs
+		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		os.Exit(1)
+	}()
 
 	var recieved, dropped, errored int64
 
